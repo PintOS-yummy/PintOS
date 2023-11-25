@@ -1,3 +1,4 @@
+// 초당 100번 똑딱거리는 시스템 타이머
 #include "devices/timer.h"
 #include <debug.h>
 #include <inttypes.h>
@@ -19,6 +20,7 @@
 
 /* Number of timer ticks since OS booted. */
 static int64_t ticks;
+static int64_t sleep_ticks;
 
 /* Number of loops per timer tick.
    Initialized by timer_calibrate(). */
@@ -72,10 +74,10 @@ timer_calibrate (void) {
 
 /* Returns the number of timer ticks since the OS booted. */
 int64_t
-timer_ticks (void) {
-	enum intr_level old_level = intr_disable ();
+timer_ticks (void) { //os 부팅 후 타이머 틱 수를 반환
+	enum intr_level old_level = intr_disable ();  //인터럽트를 비활성화하고 이전 인터럽트 상태를 반환
 	int64_t t = ticks;
-	intr_set_level (old_level);
+	intr_set_level (old_level); /*LEVEL에 지정된 대로 인터럽트를 활성화 또는 비활성화하고는 이전 인터럽트 상태를 반환*/
 	barrier ();
 	return t;
 }
@@ -89,11 +91,11 @@ timer_elapsed (int64_t then) {
 
 /* Suspends execution for approximately TICKS timer ticks. */
 void
-timer_sleep (int64_t ticks) {
-	int64_t start = timer_ticks ();
+timer_sleep (int64_t ticks) { //원하는 tick을 지정 해두고 해당 tick만큼 지나면 yield()를 멈춰라
+	int64_t start = timer_ticks (); //start = 시작 시간
 
 	ASSERT (intr_get_level () == INTR_ON);
-	while (timer_elapsed (start) < ticks)
+	while (timer_elapsed (start) < ticks) //종료시간이 안되어도 계속 확인을 해 cpu 사용량이 많다. 이를 줄이는 방법을 생각해야할듯?!
 		thread_yield ();
 }
 

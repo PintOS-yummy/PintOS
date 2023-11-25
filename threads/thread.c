@@ -38,7 +38,7 @@ static struct thread *initial_thread;
 static struct lock tid_lock;
 
 /* Thread destruction requests */
-static struct list destruction_req;
+static struct list destruction_req; //쓰레드 삭제 요청
 
 /* Statistics. */
 static long long idle_ticks;    /* # of timer ticks spent idle. */
@@ -176,6 +176,23 @@ thread_print_stats (void) {
    The code provided sets the new thread's `priority' member to
    PRIORITY, but no actual priority scheduling is implemented.
    Priority scheduling is the goal of Problem 1-3. */
+
+   /* 주어진 이니셜을 가진 NAME이라는 이름의 새 커널 스레드를 생성합니다.
+   우선순위를 가진 새로운 커널 스레드를 생성하고, 이 스레드는 AUX를 인수로 전달하는 FUNCTION을 실행합니다,
+   를 실행하여 준비 큐에 추가합니다.  새 스레드의 스레드 식별자
+   를 반환하고, 생성에 실패하면 TID_ERROR를 반환합니다.
+
+   thread_start()가 호출된 경우, 새 스레드가
+   새 스레드가 스케줄링될 수 있습니다.  심지어 thread_create()가 반환되기 전에
+   종료할 수도 있습니다.  반대로, 원래의
+   스레드는 새 스레드가 스케줄되기 전까지 얼마든지 실행될 수 있습니다.
+   스케줄링할 수 있습니다.  순서를 보장해야 하는 경우 세마포어 또는 다른 형태의
+   동기화를 사용하세요.
+
+   제공된 코드는 새 스레드의 '우선순위' 멤버를
+   PRIORITY로 설정하지만 실제 우선순위 스케줄링은 구현되지 않습니다.
+   우선순위 스케줄링은 문제 1-3의 목표입니다. */
+
 tid_t
 thread_create (const char *name, int priority,
 		thread_func *function, void *aux) {
@@ -255,7 +272,7 @@ thread_name (void) {
    This is running_thread() plus a couple of sanity checks.
    See the big comment at the top of thread.h for details. */
 struct thread *
-thread_current (void) {
+thread_current (void) { //현재 실행중인 쓰레드 반환, running_thread에 검사 추가한것
 	struct thread *t = running_thread ();
 
 	/* Make sure T is really a thread.
@@ -295,17 +312,22 @@ thread_exit (void) {
 /* Yields the CPU.  The current thread is not put to sleep and
    may be scheduled again immediately at the scheduler's whim. */
 void
-thread_yield (void) {
-	struct thread *curr = thread_current ();
+thread_yield (void) { //다른 쓰레드에게 양보하는 것
+	struct thread *curr = thread_current (); //현재 쓰레드 값
 	enum intr_level old_level;
 
 	ASSERT (!intr_context ());
 
-	old_level = intr_disable ();
-	if (curr != idle_thread)
-		list_push_back (&ready_list, &curr->elem);
+	old_level = intr_disable (); //인터럽트를 비활성화하고 이전 인터럽트 상태를 반환
+	if (curr != idle_thread) //만약 현재 쓰레드가 idle(실행할 쓰레드가 없을땐 idle 쓰레드가 돌아가고 있음)
+	//즉, 다른 쓰레드가 실행중일때
+		list_push_back (&ready_list, &curr->elem); //ready_list 맨뒤에 현재 쓰레드값을 넣어줌
+	
+	//idle이 아니면
 	do_schedule (THREAD_READY);
-	intr_set_level (old_level);
+	intr_set_level (old_level); //old_level에 지정된 대로 인터럽트를 활성화 또는 비활성화하고는 이전 인터럽트 상태를 반환
+	//return level == INTR_ON ? intr_enable () : intr_disable (); 
+	//INTR_ON = True : 인터럽트를 받을 수 있는 상황 intr_enable () <-> 받을 수 없는 상황 intr_disable()
 }
 
 /* Sets the current thread's priority to NEW_PRIORITY. */
@@ -529,13 +551,13 @@ static void
 do_schedule(int status) {
 	ASSERT (intr_get_level () == INTR_OFF);
 	ASSERT (thread_current()->status == THREAD_RUNNING);
-	while (!list_empty (&destruction_req)) {
-		struct thread *victim =
+	while (!list_empty (&destruction_req)) { //리스트가 비어있지 않다면
+		struct thread *victim = //ready_list의 앞에껄 pop해옴
 			list_entry (list_pop_front (&destruction_req), struct thread, elem);
-		palloc_free_page(victim);
+		palloc_free_page(victim); //해당 쓰레드를 ready_list에서 pop해주고 free해줌
 	}
 	thread_current ()->status = status;
-	schedule ();
+	schedule (); //다음 쓰레드를 실행해줌
 }
 
 static void
@@ -557,7 +579,7 @@ schedule (void) {
 	process_activate (next);
 #endif
 
-	if (curr != next) {
+	if (curr != next) { //현재 실행할 쓰레드와 다음 실행할 쓰레드가 다른 쓰레드이면
 		/* If the thread we switched from is dying, destroy its struct
 		   thread. This must happen late so that thread_exit() doesn't
 		   pull out the rug under itself.
@@ -565,14 +587,14 @@ schedule (void) {
 		   currently used by the stack.
 		   The real destruction logic will be called at the beginning of the
 		   schedule(). */
-		if (curr && curr->status == THREAD_DYING && curr != initial_thread) {
+		if (curr && curr->status == THREAD_DYING && curr != initial_thread) { //현재 쓰레드가 파괴되지 않았고, 제일 처음 쓰레드가 아니라면
 			ASSERT (curr != next);
-			list_push_back (&destruction_req, &curr->elem);
+			list_push_back (&destruction_req, &curr->elem); //쓰레드를 삭제 리스트(destruction_req)에 넣어줌
 		}
 
 		/* Before switching the thread, we first save the information
 		 * of current running. */
-		thread_launch (next);
+		thread_launch (next); //현재 쓰레드를 파괴하고 다음 쓰레드 실행
 	}
 }
 

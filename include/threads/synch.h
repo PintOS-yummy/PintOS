@@ -43,6 +43,7 @@ void cond_broadcast (struct condition *, struct lock *);
  * The compiler will not reorder operations across an
  * optimization barrier.  See "Optimization Barriers" in the
  * reference guide for more information.*/
+// 컴파일러 수준 메모리 장벽을 생성해 최적화 프로그램이 장벽 전체에서 메모리 엑세스 순서를 변경하지 않도록.
 #define barrier() asm volatile ("" : : : "memory")
 
 #endif /* threads/synch.h */
