@@ -303,6 +303,7 @@ void thread_unblock(struct thread *t)
 /* running(cur) 쓰레드와 ready_list의 우선순위 비교 후,
  running(cur) 쓰레드를 우선순위 높은 쓰레드로 유지,
  삽입 시에 정렬 유지! */
+// 구현 시작
 void resort_priority()
 {
 	struct thread *cur = thread_current(); // 안되면 resort_priority() 인자에 넣기?
