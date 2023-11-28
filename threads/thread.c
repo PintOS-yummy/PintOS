@@ -28,6 +28,9 @@
 	 that are ready to run but not actually running. */
 static struct list ready_list;
 
+// timer_sleep에 의해 잠든 쓰레드 리스트
+static struct list sleep_list;
+
 /* Idle thread. */
 static struct thread *idle_thread;
 
@@ -106,6 +109,7 @@ void thread_init(void)
 	/* Init the globla thread context */
 	lock_init(&tid_lock);
 	list_init(&ready_list);
+	list_init(&sleep_list);
 	list_init(&destruction_req);
 
 	/* Set up a thread structure for the running thread. */
@@ -132,14 +136,15 @@ void thread_start(void)
 }
 
 /* Called by the timer interrupt handler at each timer tick.
-	 Thus, this function runs in an external interrupt context. */
+	 Thus, this function runs in an external interrupt context.
+	 타이머 인터럽트 핸들러에 의해 각 타이머 틱(tick)마다 호출 */
 void thread_tick(void)
 {
 	struct thread *t = thread_current();
 
 	/* Update statistics. */
-	if (t == idle_thread)
-		idle_ticks++;
+	if (t == idle_thread) // 쓰레드가 idle_thread인 경우, 
+		idle_ticks++; // idle_ticks 증가시켜서 시스템이 얼마나 유휴 상태였는지 추적
 #ifdef USERPROG
 	else if (t->pml4 != NULL)
 		user_ticks++;
@@ -147,9 +152,45 @@ void thread_tick(void)
 	else
 		kernel_ticks++;
 
-	/* Enforce preemption. */
-	if (++thread_ticks >= TIME_SLICE)
-		intr_yield_on_return();
+	/* Enforce preemption.
+		사전 선점 실행(TIME_SLICE=한 쓰레드가 연속해서 실행할 수 있는 최대 시간)*/
+	if (++thread_ticks >= TIME_SLICE) // thread_ticks 증가시키고, TIME_SLICE보다 크거나 같아지면,
+		intr_yield_on_return(); // 선점 실행, 현재 쓰레드가 타임 슬라이스를 소진했을 때, 
+	// 인터럽트 서비스 루틴이 반환될 때 다른 스레드로 전환하도록 요청. 
+	// 다음에 가능한 시점에 컨텍스트 스위치를 수행하도록 스케줄러에 신호를 보냅니다.
+}
+
+/* 현재 쓰레드를 ticks 동안 재우기 */
+void thread_sleep(int64_t ticks)
+{
+	struct thread *curr = thread_current();
+	enum intr_level old_level;
+
+	old_level = intr_disable(); // 쓰레드 리스트를 조작할 때는 인터럽트 비활성화 하기
+	if (curr != idle_thread)		// 현재 쓰레드가 있으면,
+	{
+		curr->wakeup_ticks = ticks;
+		list_push_back(&sleep_list, &curr->elem);
+		thread_block();
+	}
+	intr_set_level(old_level);
+}
+
+/* sleep_list의 쓰레드를 ticks가 지나면 깨운다 */
+void thread_wakeup(int64_t ticks)
+{
+	struct list_elem *element = list_begin(&sleep_list);
+	while () // sleep_list의 모든 element 탐색
+	{
+		if () // 깰 시간이면,
+		{
+			// thread_unblock
+		}
+		else // 깰 시간 아니면
+		{
+			// 다음 리스트 값 확인 list_next
+		}
+	}
 }
 
 /* Prints thread statistics. */
