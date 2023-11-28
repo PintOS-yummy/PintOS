@@ -9,6 +9,7 @@
 #include "threads/synch.h"
 #include "threads/thread.h"
 
+
 /* See [8254] for hardware details of the 8254 timer chip. */
 
 #if TIMER_FREQ < 19
@@ -20,7 +21,7 @@
 
 /* Number of timer ticks since OS booted. */
 static int64_t ticks;
-static int64_t sleep_ticks;
+// static int64_t wakeup_ticks;
 
 /* Number of loops per timer tick.
    Initialized by timer_calibrate(). */
@@ -30,6 +31,7 @@ static intr_handler_func timer_interrupt;
 static bool too_many_loops (unsigned loops);
 static void busy_wait (int64_t loops);
 static void real_time_sleep (int64_t num, int32_t denom);
+
 
 /* Sets up the 8254 Programmable Interval Timer (PIT) to
    interrupt PIT_FREQ times per second, and registers the
@@ -95,8 +97,13 @@ timer_sleep (int64_t ticks) { //원하는 tick을 지정 해두고 해당 tick�
 	int64_t start = timer_ticks (); //start = 시작 시간
 
 	ASSERT (intr_get_level () == INTR_ON);
-	while (timer_elapsed (start) < ticks) //종료시간이 안되어도 계속 확인을 해 cpu 사용량이 많다. 이를 줄이는 방법을 생각해야할듯?!
-		thread_yield ();
+	// busy wait
+	// while (timer_elapsed (start) < ticks) //종료시간이 안되어도 계속 확인을 해 cpu 사용량이 많다. 이를 줄이는 방법을 생각해야할듯?!
+	// 	thread_yield ();
+
+	if(timer_elapsed(start)< ticks) //아직 깨울시간이 안되었을때
+		thread_sleep(start + ticks);
+	
 }
 
 /* Suspends execution for approximately MS milliseconds. */
@@ -128,6 +135,7 @@ static void
 timer_interrupt (struct intr_frame *args UNUSED) {
 	ticks++;
 	thread_tick ();
+	thread_wakeup(ticks);
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer

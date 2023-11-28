@@ -28,6 +28,9 @@
    that are ready to run but not actually running. */
 static struct list ready_list;
 
+/* sleep thread를 저장하기 위함 */
+static struct list sleep_list;
+
 /* Idle thread. */
 static struct thread *idle_thread;
 
@@ -62,6 +65,8 @@ static void init_thread (struct thread *, const char *name, int priority);
 static void do_schedule(int status);
 static void schedule (void);
 static tid_t allocate_tid (void);
+void thread_sleep(int64_t ticks);
+void thread_wakeup(int64_t ticks);
 
 /* Returns true if T appears to point to a valid thread. */
 #define is_thread(t) ((t) != NULL && (t)->magic == THREAD_MAGIC)
@@ -108,6 +113,7 @@ thread_init (void) {
 	/* Init the globla thread context */
 	lock_init (&tid_lock);
 	list_init (&ready_list);
+	list_init (&sleep_list);
 	list_init (&destruction_req);
 
 	/* Set up a thread structure for the running thread. */
@@ -152,6 +158,43 @@ thread_tick (void) {
 	/* Enforce preemption. */
 	if (++thread_ticks >= TIME_SLICE)
 		intr_yield_on_return ();
+}
+
+
+void
+thread_sleep (int64_t ticks)
+{
+	struct thread *cur;
+	enum intr_level old_level;
+
+	old_level = intr_disable ();	// 인터럽트 off  //인터럽트를 비활성화하고 이전 인터럽트 상태를 반환
+	cur = thread_current ();
+
+	ASSERT (cur != idle_thread);
+
+	cur->wakeup_ticks = ticks;			// 일어날 시간을 저장
+	list_push_back (&sleep_list, &cur->elem);	// sleep_list 에 추가
+	thread_block ();				// block 상태로 변경 // 여기서 현재 thread->status = THREAD_BLOCKE, schedule()이 동작함
+
+	intr_set_level (old_level);	//old_level에 지정된 대로 인터럽트를 활성화 또는 비활성화하고는 이전 인터럽트 상태를 반환
+	//return level == INTR_ON ? intr_enable () : intr_disable (); 
+	//INTR_ON = True : 인터럽트를 받을 수 있는 상황 intr_enable () <-> 받을 수 없는 상황 intr_disable()
+}
+void 
+thread_wakeup(int64_t ticks){ //list_begin을 통해서 스레드가 일어날 시간이 되었는지 확인 후 되었으면 unblock. list_remove() 안되었으면 list_next()
+	// sleep list를 다 확인해주는 방법밖에 없나?!
+	struct list_elem *element = list_begin(&sleep_list); //list_begin, list_next
+	while (element!=list_end(&sleep_list)){
+		struct thread *t = list_entry(element,struct thread, elem);
+
+		if(t->wakeup_ticks <= ticks){ //깰 시간이야~
+			element = list_remove(&t->elem);
+			thread_unblock(t); // 여기서 현재 thread->status = THREAD_READY, list_push_back (&ready_list)를 실행함
+		
+		}else{ //아직 깰시간 아니야 다음 리스트 값 확인
+			element = list_next(element);
+		}
+	}
 }
 
 /* Prints thread statistics. */
