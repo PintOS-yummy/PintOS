@@ -41,6 +41,16 @@
 
    - up or "V": increment the value (and wake up one waiting
    thread, if any). */
+
+/* 세마포어 SEMA를 Value로 초기화합니다.
+세마포어는 음이 아닌 정수와 두 개의 원자 연산자
+조작하기:
+
+- down or "P": 값이 양수가 될 때까지 기다렸다가
+줄이세요.
+
+- up or "V": 값을 증가시키고 대기 중인 한 명을 깨웁니다
+나사산(thread, 있는 경우). */
 void
 sema_init (struct semaphore *sema, unsigned value) {
 	ASSERT (sema != NULL);
@@ -57,6 +67,13 @@ sema_init (struct semaphore *sema, unsigned value) {
    interrupts disabled, but if it sleeps then the next scheduled
    thread will probably turn interrupts back on. This is
    sema_down function. */
+/* 세마포어에서 down 또는 "P" 작업. SEMA의 값이 양성이 될때까지 기다렸다가 감소
+
+이 기능은 절전 모드일 수 있으므로 다음 시간 내에 호출하면 안 됩니다
+인터럽트 핸들러. 이 함수는 다음과 같이 호출될 수 있습니다
+인터럽트가 비활성화되어 있지만, 그것이 절전 모드일 경우 다음으로 예약됩니다
+스레드는 아마도 인터럽트를 다시 켜줄 것입니다. 이것은
+sema_down 함수. */
 void
 sema_down (struct semaphore *sema) {
 	enum intr_level old_level;
@@ -102,6 +119,10 @@ sema_try_down (struct semaphore *sema) {
    and wakes up one thread of those waiting for SEMA, if any.
 
    This function may be called from an interrupt handler. */
+/* 세마포어에서 업 또는 "V" 작업. SEMA 값을 증가시킵니다
+그리고 SEMA를 기다리는 사람들 중 하나의 실을 깨웁니다.
+
+이 함수는 인터럽트 핸들러에서 호출될 수 있습니다.*/
 void
 sema_up (struct semaphore *sema) {
 	enum intr_level old_level;

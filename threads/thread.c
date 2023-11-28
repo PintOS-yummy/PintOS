@@ -379,12 +379,14 @@ thread_yield (void) { //다른 쓰레드에게 양보하는 것 //priority sched
 	intr_set_level (old_level);
 }
 
-void resort_priority (void){ //현재 실행중인 thread가 ready_list 맨 앞의 값보다 우선순위가 낮은 경우 thread_yield()를 해주고 다시 list 재정렬을 해주고 다시 schedule()
+void resort_priority (void){ //현재 실행중인 thread가 ready_list 맨 앞의 값보다 우선순위가 낮은 경우 
+	//thread_yield()를 해주면 yield 안에서 다시 list 재정렬을 해주고 다시 schedule()
+	
 	struct thread *curr = thread_current();
 	struct thread *list_front_thread = list_entry (list_front (&ready_list),struct thread, elem);
-	
+
 	if (!list_empty (&ready_list) && curr->priority < list_front_thread->priority)   
-		thread_yield ();    
+		thread_yield ();
 }
 
 /* Sets the current thread's priority to NEW_PRIORITY. */
