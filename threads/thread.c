@@ -180,15 +180,19 @@ void thread_sleep(int64_t ticks)
 void thread_wakeup(int64_t ticks)
 {
 	struct list_elem *element = list_begin(&sleep_list);
-	while () // sleep_list의 모든 element 탐색
+	
+	while (element != list_tail(&sleep_list)) // sleep_list의 모든 element 탐색(sleep_list의 tail이 element가 아닐 때까지)
 	{
-		if () // 깰 시간이면,
+		struct thread *t = list_entry(element, struct thread, elem);
+		if (t->wakeup_ticks == ticks) // 깰 시간이면,
 		{
 			// thread_unblock
+			thread_unblock(t);
 		}
 		else // 깰 시간 아니면
-		{
+		{ 
 			// 다음 리스트 값 확인 list_next
+			element = list_next(element->next);
 		}
 	}
 }
