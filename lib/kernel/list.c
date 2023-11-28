@@ -247,8 +247,8 @@ struct list_elem *e = list_pop_front (&list);
 ...do something with e...
 }
 */
-struct list_elem *
-list_remove(struct list_elem *elem)
+// 노드 삭제하고 앞 뒤 노드 이어줌
+struct list_elem *list_remove(struct list_elem *elem)
 {
 	ASSERT(is_interior(elem));
 	elem->prev->next = elem->next;
@@ -438,7 +438,8 @@ void list_sort(struct list *list, list_less_func *less, void *aux)
 
 /* Inserts ELEM in the proper position in LIST, which must be
 	 sorted according to LESS given auxiliary data AUX.
-	 Runs in O(n) average case in the number of elements in LIST. */
+	 Runs in O(n) average case in the number of elements in LIST.
+	 새로운 쓰레드를 우선순위에 맞게 삽입 */
 void list_insert_ordered(struct list *list, struct list_elem *elem,
 												 list_less_func *less, void *aux)
 {
@@ -449,7 +450,7 @@ void list_insert_ordered(struct list *list, struct list_elem *elem,
 	ASSERT(less != NULL);
 
 	for (e = list_begin(list); e != list_end(list); e = list_next(e))
-		if (less(elem, e, aux))
+		if (less(elem, e, aux)) // 
 			break;
 	return list_insert(e, elem);
 }

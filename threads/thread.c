@@ -31,6 +31,15 @@ static struct list ready_list;
 // timer_sleep에 의해 잠든 쓰레드 리스트
 static struct list sleep_list;
 
+// 쓰레드 a와 b의 우선순위 비교, a>b가 참이면 True 반환
+bool cmp_priority(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED)
+{
+	struct thread *thread_a = list_entry(a, struct thread, elem);
+	struct thread *thread_b = list_entry(b, struct thread, elem);
+
+	return thread_a->priority > thread_b->priority;
+}
+
 /* Idle thread. */
 static struct thread *idle_thread;
 
@@ -143,8 +152,8 @@ void thread_tick(void)
 	struct thread *t = thread_current();
 
 	/* Update statistics. */
-	if (t == idle_thread) // 쓰레드가 idle_thread인 경우, 
-		idle_ticks++; // idle_ticks 증가시켜서 시스템이 얼마나 유휴 상태였는지 추적
+	if (t == idle_thread) // 쓰레드가 idle_thread인 경우,
+		idle_ticks++;				// idle_ticks 증가시켜서 시스템이 얼마나 유휴 상태였는지 추적
 #ifdef USERPROG
 	else if (t->pml4 != NULL)
 		user_ticks++;
@@ -155,9 +164,9 @@ void thread_tick(void)
 	/* Enforce preemption.
 		사전 선점 실행(TIME_SLICE=한 쓰레드가 연속해서 실행할 수 있는 최대 시간)*/
 	if (++thread_ticks >= TIME_SLICE) // thread_ticks 증가시키고, TIME_SLICE보다 크거나 같아지면,
-		intr_yield_on_return(); // 선점 실행, 현재 쓰레드가 타임 슬라이스를 소진했을 때, 
-	// 인터럽트 서비스 루틴이 반환될 때 다른 스레드로 전환하도록 요청. 
-	// 다음에 가능한 시점에 컨텍스트 스위치를 수행하도록 스케줄러에 신호를 보냅니다.
+		intr_yield_on_return();					// 선점 실행, 현재 쓰레드가 타임 슬라이스를 소진했을 때,
+																		// 인터럽트 서비스 루틴이 반환될 때 다른 스레드로 전환하도록 요청.
+																		// 다음에 가능한 시점에 컨텍스트 스위치를 수행하도록 스케줄러에 신호를 보냅니다.
 }
 
 /* 현재 쓰레드를 ticks 동안 재우기 */
@@ -180,19 +189,21 @@ void thread_sleep(int64_t ticks)
 void thread_wakeup(int64_t ticks)
 {
 	struct list_elem *element = list_begin(&sleep_list);
-	
+
 	while (element != list_tail(&sleep_list)) // sleep_list의 모든 element 탐색(sleep_list의 tail이 element가 아닐 때까지)
 	{
 		struct thread *t = list_entry(element, struct thread, elem);
-		if (t->wakeup_ticks == ticks) // 깰 시간이면,
+		if (t->wakeup_ticks <= ticks) // 깰 시간이면,
 		{
 			// thread_unblock
+			element = list_remove(element); // sleep_list에서 노드 연결 삭제하고 앞 뒤 노드 연결 해줌
 			thread_unblock(t);
+			// element = list_next(element); // 다음 노드로 이동 // 수정
 		}
 		else // 깰 시간 아니면
-		{ 
+		{
 			// 다음 리스트 값 확인 list_next
-			element = list_next(element->next);
+			element = list_next(element); // sleep_list의 다음 노드로 이동
 		}
 	}
 }
@@ -283,9 +294,33 @@ void thread_unblock(struct thread *t)
 
 	old_level = intr_disable();
 	ASSERT(t->status == THREAD_BLOCKED);
-	list_push_back(&ready_list, &t->elem);
+	// list_push_back(&ready_list, &t->elem);
+	list_insert_ordered(&ready_list, &t->elem, cmp_priority, NULL);
 	t->status = THREAD_READY;
 	intr_set_level(old_level);
+}
+
+/* running(cur) 쓰레드와 ready_list의 우선순위 비교 후,
+ running(cur) 쓰레드를 우선순위 높은 쓰레드로 유지,
+ 삽입 시에 정렬 유지! */
+void resort_priority()
+{
+	struct thread *cur = thread_current(); // 안되면 resort_priority() 인자에 넣기?
+	int cur_priority = cur->priority; // running(cur) 쓰레드의 우선순위 값
+
+	struct list_elem *elem = list_begin(&ready_list); // ready_list에서 우선순위 제일 높은 쓰레드
+	struct thread *elem_thread = list_entry(elem, struct thread, elem); // 쓰레드 구조체
+	int elem_priority = elem_thread->priority; // ready_list에서 우선순위 제일 높은 쓰레드의 우선순위 값
+
+	if () // 현재 쓰레드 > 리스트 쓰레드면
+	{
+		// 현재 쓰레드 실행 유지
+	}
+	else // 현재 쓰레드 < 리스트 쓰레드
+	{
+		// 현재 쓰레드를 ready_list에 넣고, 
+		// ready 리스트의 우선순위 제일 높은 쓰레드 실행(yield?)
+	}
 }
 
 /* Returns the name of the running thread. */
@@ -348,18 +383,20 @@ void thread_yield(void)
 
 	old_level = intr_disable();
 	if (curr != idle_thread) //
-		list_push_back(&ready_list, &curr->elem);
+		list_push_back(&ready_list, &curr->elem); // 여기에 resort_priority() 추가?
 	do_schedule(THREAD_READY);
 	intr_set_level(old_level);
 }
 
-/* Sets the current thread's priority to NEW_PRIORITY. */
+/* Sets the current thread's priority to NEW_PRIORITY.
+		현재 쓰레드의 우선순위를 new_priority로 바꿈 */
 void thread_set_priority(int new_priority)
 {
 	thread_current()->priority = new_priority;
 }
 
-/* Returns the current thread's priority. */
+/* Returns the current thread's priority.
+	이 함수를 호출한 쓰레드의 우선순위 반환 */
 int thread_get_priority(void)
 {
 	return thread_current()->priority;

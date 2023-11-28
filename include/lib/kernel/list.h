@@ -108,7 +108,8 @@ struct list {
 void list_init (struct list *);
 
 /* List traversal. */
-struct list_elem *list_begin (struct list *);
+
+struct list_elem *list_begin (struct list *); // 리스트 구조체의 주소를 인자로 받음
 struct list_elem *list_next (struct list_elem *);
 struct list_elem *list_end (struct list *);
 
@@ -144,7 +145,8 @@ void list_reverse (struct list *);
 
 /* Compares the value of two list elements A and B, given
    auxiliary data AUX.  Returns true if A is less than B, or
-   false if A is greater than or equal to B. */
+   false if A is greater than or equal to B.
+   우선순위 비교 */
 typedef bool list_less_func (const struct list_elem *a,
                              const struct list_elem *b,
                              void *aux);

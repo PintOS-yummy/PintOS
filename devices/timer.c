@@ -29,6 +29,9 @@ static bool too_many_loops(unsigned loops);
 static void busy_wait(int64_t loops);
 static void real_time_sleep(int64_t num, int32_t denom);
 
+void thread_sleep(int64_t ticks);	 // 추가한 함수
+void thread_wakeup(int64_t ticks); // 추가한 함수
+
 /* Sets up the 8254 Programmable Interval Timer (PIT) to
 	 interrupt PIT_FREQ times per second, and registers the
 	 corresponding interrupt.
@@ -95,14 +98,16 @@ timer_elapsed(int64_t then)
 }
 
 /* Suspends execution for approximately TICKS timer ticks.
-	타이머 슬립, 지정된 타이머 틱만큼 실행을 중단함 */
+	지정된 ticks가 지나면 실행을 중단함 */
 void timer_sleep(int64_t ticks)
 {
-	int64_t start = timer_ticks();
+	int64_t start = timer_ticks(); // start: 시작 시간
 
-	ASSERT(intr_get_level() == INTR_ON); // 인터럽트가 가능한 상태에서만 호출되어야 함을 보장
-	while (timer_elapsed(start) < ticks) // while 수정하기
-		thread_yield();
+	ASSERT(intr_get_level() == INTR_ON); // 인터럽트가 가능한 상태에서만 .호출되어야 함을 보장
+	// while (timer_elapsed(start) < ticks) // while 수정하기
+	// thread_yield();
+	if (timer_elapsed(start) < ticks) // 아직 깨울시간이 안되었을 때,
+		thread_sleep(start + ticks);
 }
 
 /* Suspends execution for approximately MS milliseconds. */
@@ -135,8 +140,9 @@ void timer_print_stats(void)
 static void
 timer_interrupt(struct intr_frame *args UNUSED)
 {
-	ticks++;
+	ticks++; // tick 증가시키기
 	thread_tick();
+	thread_wakeup(ticks); // 한 tick마다 sleep_list에서 깨울 쓰레드 확인
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer
@@ -187,15 +193,15 @@ real_time_sleep(int64_t num, int32_t denom)
 	int64_t ticks = num * TIMER_FREQ / denom;
 	//											 인터럽트_온
 	ASSERT(intr_get_level() == INTR_ON); // 이 함수가 인터럽트가 가능한 상태에서만 호출되어야 함을 보증
-	if (ticks > 0) // 틱이 양수인 경우:
-	{							//	timer_sleep 함수를 호출해서 CPU 양보하고 다른 프로세스가 실행될 수 있도록 함 
+	if (ticks > 0)											 // 틱이 양수인 경우:
+	{																		 //	timer_sleep 함수를 호출해서 CPU 양보하고 다른 프로세스가 실행될 수 있도록 함
 		/* We're waiting for at least one full timer tick.  Use
 			 timer_sleep() because it will yield the CPU to other
 			 processes. */
 		timer_sleep(ticks);
 	}
 	else // 틱이 0 또는 음수인 경우:
-	{		// 정확한 서브틱 타이밍을 위해 busy-wait 루프를 이용
+	{		 // 정확한 서브틱 타이밍을 위해 busy-wait 루프를 이용
 		/* Otherwise, use a busy-wait loop for more accurate
 			 sub-tick timing.  We scale the numerator and denominator
 			 down by 1000 to avoid the possibility of overflow. */
