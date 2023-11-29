@@ -112,7 +112,7 @@ struct thread
 };
 
 // 쓰레드 a와 b의 우선순위 비교, a>b가 참이면 True 반환
-bool cmp_priority(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
+bool cmp_priority(const struct list_elem *a, const struct list_elem *b, int aux);
 
 /* If false (default), use round-robin scheduler.
 	 If true, use multi-level feedback queue scheduler.

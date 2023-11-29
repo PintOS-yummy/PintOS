@@ -71,10 +71,10 @@ void sema_down (struct semaphore *sema) {
 
 	old_level = intr_disable ();
 	
-	while (sema->value >= 0) {// == -> >= 으로 변경
+	while (sema->value = 0) {
 		// list_push_back (&sema->waiters, &thread_current ()->elem); // 수정? // &cmp_priority?
-		list_insert_ordered(&sema->waiters, &thread_current ()->elem, cmp_priority, NULL); // 추가
-		thread_block();
+		list_insert_ordered(&sema->waiters, &thread_current ()->elem, cmp_priority, NULL); // 추가한 코드: 정렬 순서에 맞게 삽입 하고,
+		thread_block(); // 쓰레드 블락(sleep) 상태로 만듬
 	}
 
 	sema->value--;
@@ -123,12 +123,17 @@ void sema_up (struct semaphore *sema)
 	
 	if (!list_empty(&sema->waiters))
 	{
-		// waiters sort해서 
+		// waiters list_sort하고, 
+		list_sort(&sema->waiters, cmp_priority, 1);
+		// waiters 리스트의 쓰레드 unblock으로 변경
 		thread_unblock(list_entry(list_pop_front(&sema->waiters), struct thread, elem));
 	}
-
+	
 	sema->value++;
-	intr_set_level (old_level);
+
+	thread_yield();	// 현재 쓰레드의 세마포어의 값 1 증가 시켰으니, waiters 리스트의 쓰레드에게 yield
+	
+	intr_set_level(old_level);
 }
 
 static void sema_test_helper (void *sema_);

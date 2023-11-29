@@ -66,13 +66,28 @@ static void do_schedule(int status);
 static void schedule(void);
 static tid_t allocate_tid(void);
 
-// 추가
-bool cmp_priority(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED)
+bool cmp_priority(const struct list_elem *a, const struct list_elem *b, int aux)
 {
+	if (aux == 0)
+	{
 	struct thread *thread_a = list_entry(a, struct thread, elem);
 	struct thread *thread_b = list_entry(b, struct thread, elem);
 
 	return thread_a->priority > thread_b->priority;
+	}
+	else
+	{
+		struct semaphore_elem * a_sema_elem = list_entry(a, struct semaphore_elem, elem); 
+		struct semaphore_elem * b_sema_elem = list_entry(b, struct semaphore_elem, elem);
+		
+		struct list_elem *a_sema_begin = list_begin(&(a_sema_elem->semaphore.waiters));
+		struct list_elem *b_sema_begin = list_begin(&(b_sema_elem->semaphore.waiters));
+
+		struct thread *a_thread = list_entry(a_sema_begin, struct thread, elem);
+		struct thread *b_thread = list_entry(b_sema_begin, struct thread, elem);
+		
+		return (a_thread->priority) > (b_thread->priority);
+	}
 }
 
 /* Returns true if T appears to point to a valid thread. */
@@ -295,7 +310,7 @@ void thread_block(void)
 	 it may expect that it can atomically unblock a thread and
 	 update other data. */
 
-// 차단(blocked) 상태인 쓰레드 T를 준비(ready-to-run) 상태로 전환
+// 블락(sleep) 상태인 쓰레드 T를 준비(unblock) 상태로 전환
 void thread_unblock(struct thread *t)
 {
 	enum intr_level old_level;
@@ -308,6 +323,7 @@ void thread_unblock(struct thread *t)
 	// list_push_back(&ready_list, &t->elem);
 	list_insert_ordered(&ready_list, &t->elem, cmp_priority, NULL);
 	t->status = THREAD_READY;
+
 	intr_set_level(old_level);
 }
 

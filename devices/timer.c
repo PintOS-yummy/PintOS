@@ -103,8 +103,8 @@ void timer_sleep(int64_t ticks)
 {
 	int64_t start = timer_ticks(); // start: 시작 시간
 
-	ASSERT(intr_get_level() == INTR_ON); // 인터럽트가 가능한 상태에서만 .호출되어야 함을 보장
-	// while (timer_elapsed(start) < ticks) // while 수정하기
+	ASSERT(intr_get_level() == INTR_ON); // 인터럽트가 가능한 상태에서만 호출되어야 함을 보장
+	// while (timer_elapsed(start) < ticks) // while 수정하기 -> 수정 완
 	// thread_yield();
 	if (timer_elapsed(start) < ticks) // 아직 깨울시간이 안되었을 때,
 		thread_sleep(start + ticks);
