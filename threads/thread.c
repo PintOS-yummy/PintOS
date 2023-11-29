@@ -300,30 +300,6 @@ void thread_unblock(struct thread *t)
 	intr_set_level(old_level);
 }
 
-/* running(cur) 쓰레드와 ready_list의 우선순위 비교 후,
- running(cur) 쓰레드를 우선순위 높은 쓰레드로 유지,
- 삽입 시에 정렬 유지! */
-void resort_priority()
-{
-	struct thread *cur = thread_current(); // 안되면 resort_priority() 인자에 넣기?
-	int cur_priority = cur->priority; // running(cur) 쓰레드의 우선순위 값
-
-	struct list_elem *elem = list_begin(&ready_list); // ready_list에서 우선순위 제일 높은 쓰레드
-	struct thread *elem_thread = list_entry(elem, struct thread, elem); // 쓰레드 구조체
-	int elem_priority = elem_thread->priority; // ready_list에서 우선순위 제일 높은 쓰레드의 우선순위 값
-
-	if (cur_priority > elem_priority) // 현재 쓰레드 > 리스트 쓰레드면
-	{
-		// 현재 쓰레드 실행 유지
-	}
-	else // 현재 쓰레드 < 리스트 쓰레드
-	{
-		// 현재 쓰레드를 ready_list에 넣고, 
-		list_insert_ordered(&ready_list, elem, cmp_priority, NULL);
-		// ready 리스트의 우선순위 제일 높은 쓰레드 실행(yield?)
-
-	}
-}
 
 /* Returns the name of the running thread. */
 const char *
@@ -335,8 +311,7 @@ thread_name(void)
 /* Returns the running thread.
 	 This is running_thread() plus a couple of sanity checks.
 	 See the big comment at the top of thread.h for details. */
-struct thread *
-thread_current(void)
+struct thread *thread_current(void)
 {
 	struct thread *t = running_thread();
 
@@ -375,7 +350,7 @@ void thread_exit(void)
 }
 
 /* Yields the CPU.  The current thread is not put to sleep and
-	 may be scheduled again immediately at the scheduler's whim. 
+	 may be scheduled again immediately at the scheduler's whim.
 	 */
 void thread_yield(void)
 {
@@ -387,16 +362,41 @@ void thread_yield(void)
 	old_level = intr_disable();
 	if (curr != idle_thread) // 현재 running 쓰레드가 있으면,
 		// list_push_back(&ready_list, &curr->elem); // 여기에 resort_priority() 추가?
-		resort_priority(&ready_list, &curr->elem);
+		list_insert_ordered(&ready_list, &curr->elem, cmp_priority, NULL);
 	do_schedule(THREAD_READY);
 	intr_set_level(old_level);
 }
 
 /* Sets the current thread's priority to NEW_PRIORITY.
-		현재 쓰레드의 우선순위를 new_priority로 바꿈 */
+		1. 현재 쓰레드의 우선순위를 new_priority로 변경
+		2. ready_list의 쓰레드와 비교
+		3. 정렬 유지 하면서 ready_list에 삽입 */
 void thread_set_priority(int new_priority)
 {
+	// 현재 쓰레드 우선순위 변경
 	thread_current()->priority = new_priority;
+
+	// 우선순위 비교 후 정렬 유지하면서 삽입
+	resort_priority();
+}
+
+/* running(cur) 쓰레드와 ready_list의 우선순위 비교 후,
+ running(cur) 쓰레드를 우선순위 높은 쓰레드로 유지,
+ 삽입 시에 정렬 유지! */
+void resort_priority()
+{
+	// 다시 구현하기
+	// struct thread *cur = thread_current(); // 안되면 resort_priority() 인자에 넣기?
+	// int cur_priority = cur->priority;			 // running(cur) 쓰레드의 우선순위 값
+
+	// struct list_elem *elem = list_begin(&ready_list);	// ready_list에서 우선순위 제일 높은 쓰레드
+	// struct thread *elem_thread = list_entry(elem, struct thread, elem); // 쓰레드 구조체
+	// int elem_priority = elem_thread->priority; // ready_list에서 우선순위 제일 높은 쓰레드의 우선순위 값
+
+	// if (cur_priority < elem_priority) // 현재 쓰레드 < ready_list 쓰레드
+	// {
+	// 	list_insert_ordered(&ready_list, elem, cmp_priority, NULL);
+	// }
 }
 
 /* Returns the current thread's priority.
