@@ -351,7 +351,8 @@ void thread_exit(void)
 
 /* Yields the CPU.  The current thread is not put to sleep and
 	 may be scheduled again immediately at the scheduler's whim.
-	 */
+	 running 쓰레드가 있으면, 현재 쓰레드를 ready_list에 정렬 순서 맞게 삽입,
+	 ready_list_front 쓰레드 실행 */
 void thread_yield(void)
 {
 	struct thread *curr = thread_current();
@@ -363,6 +364,7 @@ void thread_yield(void)
 	if (curr != idle_thread) // 현재 running 쓰레드가 있으면,
 		// list_push_back(&ready_list, &curr->elem); // 여기에 resort_priority() 추가?
 		list_insert_ordered(&ready_list, &curr->elem, cmp_priority, NULL);
+
 	do_schedule(THREAD_READY);
 	intr_set_level(old_level);
 }
@@ -383,20 +385,21 @@ void thread_set_priority(int new_priority)
 /* running(cur) 쓰레드와 ready_list의 우선순위 비교 후,
  running(cur) 쓰레드를 우선순위 높은 쓰레드로 유지,
  삽입 시에 정렬 유지! */
-void resort_priority()
+void resort_priority(void)
 {
-	// 다시 구현하기
-	// struct thread *cur = thread_current(); // 안되면 resort_priority() 인자에 넣기?
-	// int cur_priority = cur->priority;			 // running(cur) 쓰레드의 우선순위 값
+	struct thread *cur = thread_current(); // 안되면 resort_priority() 인자에 넣기?
+	int cur_priority = cur->priority;			 // running(cur) 쓰레드의 우선순위 값
 
-	// struct list_elem *elem = list_begin(&ready_list);	// ready_list에서 우선순위 제일 높은 쓰레드
-	// struct thread *elem_thread = list_entry(elem, struct thread, elem); // 쓰레드 구조체
-	// int elem_priority = elem_thread->priority; // ready_list에서 우선순위 제일 높은 쓰레드의 우선순위 값
+	struct list_elem *list_front_elem = list_begin(&ready_list);	// ready_list에서 우선순위 제일 높은 쓰레드
+	struct thread *list_front_thread = list_entry(list_front_elem, struct thread, elem); // 쓰레드 구조체
+	int list_front_priority = list_front_thread->priority; // ready_list에서 우선순위 제일 높은 쓰레드의 우선순위 값
 
-	// if (cur_priority < elem_priority) // 현재 쓰레드 < ready_list 쓰레드
-	// {
-	// 	list_insert_ordered(&ready_list, elem, cmp_priority, NULL);
-	// }
+	// ready_list가 비어있지 않고, cur 우선순위가 < list_front 우선순위 일 경우,
+	//	idle_thread일 경우도 포함
+	if (!list_empty(&ready_list) && cur->priority < list_front_priority)
+	{
+		thread_yield();
+	}
 }
 
 /* Returns the current thread's priority.
