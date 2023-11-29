@@ -303,7 +303,6 @@ void thread_unblock(struct thread *t)
 /* running(cur) 쓰레드와 ready_list의 우선순위 비교 후,
  running(cur) 쓰레드를 우선순위 높은 쓰레드로 유지,
  삽입 시에 정렬 유지! */
-// 구현 시작
 void resort_priority()
 {
 	struct thread *cur = thread_current(); // 안되면 resort_priority() 인자에 넣기?
@@ -313,14 +312,16 @@ void resort_priority()
 	struct thread *elem_thread = list_entry(elem, struct thread, elem); // 쓰레드 구조체
 	int elem_priority = elem_thread->priority; // ready_list에서 우선순위 제일 높은 쓰레드의 우선순위 값
 
-	if () // 현재 쓰레드 > 리스트 쓰레드면
+	if (cur_priority > elem_priority) // 현재 쓰레드 > 리스트 쓰레드면
 	{
 		// 현재 쓰레드 실행 유지
 	}
 	else // 현재 쓰레드 < 리스트 쓰레드
 	{
 		// 현재 쓰레드를 ready_list에 넣고, 
+		list_insert_ordered(&ready_list, elem, cmp_priority, NULL);
 		// ready 리스트의 우선순위 제일 높은 쓰레드 실행(yield?)
+
 	}
 }
 
@@ -374,7 +375,8 @@ void thread_exit(void)
 }
 
 /* Yields the CPU.  The current thread is not put to sleep and
-	 may be scheduled again immediately at the scheduler's whim. */
+	 may be scheduled again immediately at the scheduler's whim. 
+	 */
 void thread_yield(void)
 {
 	struct thread *curr = thread_current();
@@ -383,8 +385,9 @@ void thread_yield(void)
 	ASSERT(!intr_context());
 
 	old_level = intr_disable();
-	if (curr != idle_thread) //
-		list_push_back(&ready_list, &curr->elem); // 여기에 resort_priority() 추가?
+	if (curr != idle_thread) // 현재 running 쓰레드가 있으면,
+		// list_push_back(&ready_list, &curr->elem); // 여기에 resort_priority() 추가?
+		resort_priority(&ready_list, &curr->elem);
 	do_schedule(THREAD_READY);
 	intr_set_level(old_level);
 }
@@ -501,8 +504,7 @@ static void init_thread(struct thread *t, const char *name, int priority)
 	 empty.  (If the running thread can continue running, then it
 	 will be in the run queue.)  If the run queue is empty, return
 	 idle_thread. */
-static struct thread *
-next_thread_to_run(void)
+static struct thread *next_thread_to_run(void)
 {
 	if (list_empty(&ready_list))
 		return idle_thread;
@@ -548,8 +550,7 @@ void do_iret(struct intr_frame *tf)
 	 It's not safe to call printf() until the thread switch is
 	 complete.  In practice that means that printf()s should be
 	 added at the end of the function. */
-static void
-thread_launch(struct thread *th)
+static void thread_launch(struct thread *th)
 {
 	uint64_t tf_cur = (uint64_t)&running_thread()->tf;
 	uint64_t tf = (uint64_t)&th->tf;
