@@ -260,6 +260,7 @@ tid_t thread_create(const char *name, int priority,
 
 	/* Add to run queue. */
 	thread_unblock(t);
+	resort_priority();
 
 	return tid;
 }
@@ -384,21 +385,24 @@ void thread_set_priority(int new_priority)
 
 /* running(cur) 쓰레드와 ready_list의 우선순위 비교 후,
  running(cur) 쓰레드를 우선순위 높은 쓰레드로 유지,
- 삽입 시에 정렬 유지! */
+ */
 void resort_priority(void)
 {
 	struct thread *cur = thread_current(); // 안되면 resort_priority() 인자에 넣기?
 	int cur_priority = cur->priority;			 // running(cur) 쓰레드의 우선순위 값
-
-	struct list_elem *list_front_elem = list_begin(&ready_list);	// ready_list에서 우선순위 제일 높은 쓰레드
-	struct thread *list_front_thread = list_entry(list_front_elem, struct thread, elem); // 쓰레드 구조체
-	int list_front_priority = list_front_thread->priority; // ready_list에서 우선순위 제일 높은 쓰레드의 우선순위 값
-
-	// ready_list가 비어있지 않고, cur 우선순위가 < list_front 우선순위 일 경우,
-	//	idle_thread일 경우도 포함
-	if (!list_empty(&ready_list) && cur->priority < list_front_priority)
+	
+	if (!list_empty(&ready_list)) // 위치를 if문 밖으로 변경(priority-change PASS)
 	{
-		thread_yield();
+		struct list_elem *list_front_elem = list_begin(&ready_list);	// ready_list에서 우선순위 제일 높은 쓰레드
+		struct thread *list_front_thread = list_entry(list_front_elem, struct thread, elem); // 쓰레드 구조체
+		int list_front_priority = list_front_thread->priority; // ready_list에서 우선순위 제일 높은 쓰레드의 우선순위 값
+
+		// ready_list가 비어있지 않고, cur 우선순위가 < list_front 우선순위 일 경우,
+		//	idle_thread일 경우도 포함
+		if (cur_priority < list_front_priority)
+		{
+			thread_yield();
+		}
 	}
 }
 
