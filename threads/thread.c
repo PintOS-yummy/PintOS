@@ -31,15 +31,6 @@ static struct list ready_list;
 // timer_sleep에 의해 잠든 쓰레드 리스트
 static struct list sleep_list;
 
-// 쓰레드 a와 b의 우선순위 비교, a>b가 참이면 True 반환
-bool cmp_priority(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED)
-{
-	struct thread *thread_a = list_entry(a, struct thread, elem);
-	struct thread *thread_b = list_entry(b, struct thread, elem);
-
-	return thread_a->priority > thread_b->priority;
-}
-
 /* Idle thread. */
 static struct thread *idle_thread;
 
@@ -74,6 +65,15 @@ static void init_thread(struct thread *, const char *name, int priority);
 static void do_schedule(int status);
 static void schedule(void);
 static tid_t allocate_tid(void);
+
+// 추가
+bool cmp_priority(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED)
+{
+	struct thread *thread_a = list_entry(a, struct thread, elem);
+	struct thread *thread_b = list_entry(b, struct thread, elem);
+
+	return thread_a->priority > thread_b->priority;
+}
 
 /* Returns true if T appears to point to a valid thread. */
 #define is_thread(t) ((t) != NULL && (t)->magic == THREAD_MAGIC)
@@ -260,6 +260,8 @@ tid_t thread_create(const char *name, int priority,
 
 	/* Add to run queue. */
 	thread_unblock(t);
+
+	// 선점 방식 구현(priority-FIFO FAIL->PASS)
 	resort_priority();
 
 	return tid;
@@ -270,16 +272,21 @@ tid_t thread_create(const char *name, int priority,
 
 	 This function must be called with interrupts turned off.  It
 	 is usually a better idea to use one of the synchronization
-	 primitives in synch.h. */
+	 primitives in synch.h.
+	 현재 스레드를 슬립 상태로 전환
+	 */
 void thread_block(void)
 {
 	ASSERT(!intr_context());
 	ASSERT(intr_get_level() == INTR_OFF);
+
 	thread_current()->status = THREAD_BLOCKED;
+
 	schedule();
 }
 
-/* Transitions a blocked thread T to the ready-to-run state.
+/*
+	Transitions a blocked thread T to the ready-to-run state.
 	 This is an error if T is not blocked.  (Use thread_yield() to
 	 make the running thread ready.)
 
@@ -287,6 +294,8 @@ void thread_block(void)
 	 be important: if the caller had disabled interrupts itself,
 	 it may expect that it can atomically unblock a thread and
 	 update other data. */
+
+// 차단(blocked) 상태인 쓰레드 T를 준비(ready-to-run) 상태로 전환
 void thread_unblock(struct thread *t)
 {
 	enum intr_level old_level;
@@ -295,12 +304,12 @@ void thread_unblock(struct thread *t)
 
 	old_level = intr_disable();
 	ASSERT(t->status == THREAD_BLOCKED);
+
 	// list_push_back(&ready_list, &t->elem);
 	list_insert_ordered(&ready_list, &t->elem, cmp_priority, NULL);
 	t->status = THREAD_READY;
 	intr_set_level(old_level);
 }
-
 
 /* Returns the name of the running thread. */
 const char *
@@ -390,12 +399,12 @@ void resort_priority(void)
 {
 	struct thread *cur = thread_current(); // 안되면 resort_priority() 인자에 넣기?
 	int cur_priority = cur->priority;			 // running(cur) 쓰레드의 우선순위 값
-	
+
 	if (!list_empty(&ready_list)) // 위치를 if문 밖으로 변경(priority-change PASS)
 	{
-		struct list_elem *list_front_elem = list_begin(&ready_list);	// ready_list에서 우선순위 제일 높은 쓰레드
+		struct list_elem *list_front_elem = list_begin(&ready_list);												 // ready_list에서 우선순위 제일 높은 쓰레드
 		struct thread *list_front_thread = list_entry(list_front_elem, struct thread, elem); // 쓰레드 구조체
-		int list_front_priority = list_front_thread->priority; // ready_list에서 우선순위 제일 높은 쓰레드의 우선순위 값
+		int list_front_priority = list_front_thread->priority;															 // ready_list에서 우선순위 제일 높은 쓰레드의 우선순위 값
 
 		// ready_list가 비어있지 않고, cur 우선순위가 < list_front 우선순위 일 경우,
 		//	idle_thread일 경우도 포함

@@ -277,9 +277,9 @@ list_pop_back(struct list *list)
 }
 
 /* Returns the front element in LIST.
-	 Undefined behavior if LIST is empty. */
-struct list_elem *
-list_front(struct list *list)
+	 Undefined behavior if LIST is empty.
+	 리스트의 맨 앞 list_elem을 반환 */
+struct list_elem *list_front(struct list *list)
 {
 	ASSERT(!list_empty(list));
 	return list->head.next;
@@ -307,7 +307,8 @@ list_size(struct list *list)
 	return cnt;
 }
 
-/* Returns true if LIST is empty, false otherwise. */
+/* Returns true if LIST is empty, false otherwise.
+	리스트 비었으면 true, 아니면 false 반환 */
 bool list_empty(struct list *list)
 {
 	return list_begin(list) == list_end(list);
@@ -448,9 +449,9 @@ void list_insert_ordered(struct list *list, struct list_elem *elem,
 	ASSERT(list != NULL);
 	ASSERT(elem != NULL);
 	ASSERT(less != NULL);
-
+	// list_head/list_tail이어야 하는 거 아닌가?
 	for (e = list_begin(list); e != list_end(list); e = list_next(e))
-		if (less(elem, e, aux)) // 
+		if (less(elem, e, aux)) // cmp_priority 함수가 들어갈 자리
 			break;
 	return list_insert(e, elem);
 }

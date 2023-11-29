@@ -40,9 +40,11 @@
    decrement it.
 
    - up or "V": increment the value (and wake up one waiting
-   thread, if any). */
-void
-sema_init (struct semaphore *sema, unsigned value) {
+   thread, if any). 
+
+	 세마포어 초기화하는 함수
+	 value로 현재 세마포어 값 설정 */
+void sema_init (struct semaphore *sema, unsigned value) {
 	ASSERT (sema != NULL);
 
 	sema->value = value;
@@ -56,19 +58,25 @@ sema_init (struct semaphore *sema, unsigned value) {
    interrupt handler.  This function may be called with
    interrupts disabled, but if it sleeps then the next scheduled
    thread will probably turn interrupts back on. This is
-   sema_down function. */
-void
-sema_down (struct semaphore *sema) {
+   sema_down function.
+	 
+	 세마포어 요청하는 함수
+	 세마포어의 값이 0보다 클 때까지 쓰레드를 대기 상태로 만듬,
+	 세마포어 획득하면 세마포어의 값을 1 감소시킴 */
+void sema_down (struct semaphore *sema) {
 	enum intr_level old_level;
 
 	ASSERT (sema != NULL);
 	ASSERT (!intr_context ());
 
 	old_level = intr_disable ();
-	while (sema->value == 0) {
-		list_push_back (&sema->waiters, &thread_current ()->elem);
-		thread_block ();
+	
+	while (sema->value >= 0) {// == -> >= 으로 변경
+		// list_push_back (&sema->waiters, &thread_current ()->elem); // 수정? // &cmp_priority?
+		list_insert_ordered(&sema->waiters, &thread_current ()->elem, cmp_priority, NULL); // 추가
+		thread_block();
 	}
+
 	sema->value--;
 	intr_set_level (old_level);
 }
@@ -78,8 +86,7 @@ sema_down (struct semaphore *sema) {
    decremented, false otherwise.
 
    This function may be called from an interrupt handler. */
-bool
-sema_try_down (struct semaphore *sema) {
+bool sema_try_down (struct semaphore *sema) {
 	enum intr_level old_level;
 	bool success;
 
@@ -101,17 +108,25 @@ sema_try_down (struct semaphore *sema) {
 /* Up or "V" operation on a semaphore.  Increments SEMA's value
    and wakes up one thread of those waiting for SEMA, if any.
 
-   This function may be called from an interrupt handler. */
-void
-sema_up (struct semaphore *sema) {
+   This function may be called from an interrupt handler.
+	 
+	 세마포어 해제하는 함수
+	 세마포어 값 1 증가시키고,
+	 대기 중인 쓰레드 하나 깨워 작업시킴 */
+void sema_up (struct semaphore *sema) 
+{
 	enum intr_level old_level;
 
 	ASSERT (sema != NULL);
 
 	old_level = intr_disable ();
-	if (!list_empty (&sema->waiters))
-		thread_unblock (list_entry (list_pop_front (&sema->waiters),
-					struct thread, elem));
+	
+	if (!list_empty(&sema->waiters))
+	{
+		// waiters sort해서 
+		thread_unblock(list_entry(list_pop_front(&sema->waiters), struct thread, elem));
+	}
+
 	sema->value++;
 	intr_set_level (old_level);
 }
@@ -121,8 +136,7 @@ static void sema_test_helper (void *sema_);
 /* Self-test for semaphores that makes control "ping-pong"
    between a pair of threads.  Insert calls to printf() to see
    what's going on. */
-void
-sema_self_test (void) {
+void sema_self_test (void) {
 	struct semaphore sema[2];
 	int i;
 
@@ -139,8 +153,7 @@ sema_self_test (void) {
 }
 
 /* Thread function used by sema_self_test(). */
-static void
-sema_test_helper (void *sema_) {
+static void sema_test_helper (void *sema_) {
 	struct semaphore *sema = sema_;
 	int i;
 
@@ -236,11 +249,7 @@ lock_held_by_current_thread (const struct lock *lock) {
 	return lock->holder == thread_current ();
 }
 
-/* One semaphore in a list. */
-struct semaphore_elem {
-	struct list_elem elem;              /* List element. */
-	struct semaphore semaphore;         /* This semaphore. */
-};
+
 
 /* Initializes condition variable COND.  A condition variable
    allows one piece of code to signal a condition and cooperating
