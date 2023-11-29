@@ -157,7 +157,8 @@ sema_up (struct semaphore *sema) {
 	}
 		
 	sema->value++;
-	resort_priority();
+	// resort_priority();
+	thread_yield();
 	intr_set_level (old_level);
 }
 
@@ -233,6 +234,12 @@ lock_acquire (struct lock *lock) {
 	ASSERT (!intr_context ());
 	ASSERT (!lock_held_by_current_thread (lock));
 
+	if(lock->holder){ //lock을 누가 잡고 있는 경우 priority 확인
+		if(thread_get_priority() > lock->holder->priority){ //현재 thread priority가 현재 lock을 잡고있는 thread의 priority 보다 높으면
+			//lock을 잡고있는 thread의 priority를 더 높은 priority로 donate 해준다.
+			lock->holder->priority = thread_get_priority();
+		}
+	}
 	sema_down (&lock->semaphore);
 	lock->holder = thread_current ();
 }
@@ -267,6 +274,7 @@ lock_release (struct lock *lock) {
 	ASSERT (lock != NULL);
 	ASSERT (lock_held_by_current_thread (lock));
 
+	if(thread_current()->org_priority != thread_get_priority) thread_set_priority(thread_current()->org_priority);
 	lock->holder = NULL;
 	sema_up (&lock->semaphore);
 }
@@ -354,27 +362,9 @@ cond_signal (struct condition *cond, struct lock *lock UNUSED) {
 
 	if (!list_empty (&cond->waiters)) //여기 안에서 정렬해서 뽑아줘야한다는데? ? ?
 	{
-		/* One semaphore in a list. */
-		// struct semaphore_elem {
-		// 	struct list_elem elem;              /* List element. */
-		// 	struct semaphore semaphore;         /* This semaphore. */
-		// };
-		
-		/* A counting semaphore. */
-		// struct semaphore {
-		// 	unsigned value;             /* Current value. */
-		// 	struct list waiters;        /* List of waiting threads. */
-		// };
-		
-		/* Condition variable. */
-		// struct condition {
-		// 	struct list waiters;        /* List of waiting threads. */
-		// };
-		// struct semaphore_elem *t = list_entry (list_pop_front (&cond->waiters),struct semaphore_elem, elem);
 		list_sort (&cond->waiters, &sema_cmp_priority, 0);
 		sema_up (&list_entry (list_pop_front (&cond->waiters),struct semaphore_elem, elem)->semaphore);
-	}
-		
+	}	
 }
 
 /* Wakes up all threads, if any, waiting on COND (protected by

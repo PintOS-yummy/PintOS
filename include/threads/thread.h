@@ -91,10 +91,16 @@ struct thread {
 	enum thread_status status;          /* Thread state. */
 	char name[16];                      /* Name (for debugging purposes). */
 	int priority;                       /* Priority. */
-
 	/* Shared between thread.c and synch.c. */
 	struct list_elem elem;              /* List element. */
 	int64_t wakeup_ticks;
+
+	//donate에 필요한 변수
+	struct list donations; //donation 변수
+	struct list_elem d_elem; // donation list elem 저장
+	struct lock *wait_on_lock; //기다리는 lock이 무엇인지 저장해 줄 변수
+	int org_priority; //원래 priority를 저장해둘 변수
+
 #ifdef USERPROG
 	/* Owned by userprog/process.c. */
 	uint64_t *pml4;                     /* Page map level 4 */

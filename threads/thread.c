@@ -123,6 +123,7 @@ thread_init (void) {
 	list_init (&sleep_list);
 	list_init (&destruction_req);
 
+
 	/* Set up a thread structure for the running thread. */
 	initial_thread = running_thread ();
 	init_thread (initial_thread, "main", PRI_DEFAULT);
@@ -499,6 +500,17 @@ init_thread (struct thread *t, const char *name, int priority) {
 	t->tf.rsp = (uint64_t) t + PGSIZE - sizeof (void *);
 	t->priority = priority;
 	t->magic = THREAD_MAGIC;
+
+	// struct list donations; //donation 변수
+	// struct list_elem d_elem; // donation list elem 저장
+	// struct lock wait_on_lock; //기다리는 lock이 무엇인지 저장해 줄 변수
+	// int org_priority; //원래 priority를 저장해둘 변수
+	list_init(&t->donations);
+	t->wait_on_lock = NULL;
+	t->d_elem.prev = NULL;
+	t->d_elem.next = NULL;
+	t->org_priority = priority;
+
 }
 
 /* Chooses and returns the next thread to be scheduled.  Should
