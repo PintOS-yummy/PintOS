@@ -36,7 +36,11 @@ bool cmp_priority (const struct list_elem *a,const struct list_elem *b,void *aux
 	struct thread *b_t = list_entry(b, struct thread, elem);
 	return a_t->priority > b_t->priority;  //a->priority > b->priority 이면 true
 }
-
+bool
+thread_cmp_donate_priority (const struct list_elem *l, const struct list_elem *s, void *aux UNUSED)
+{
+	return list_entry (l, struct thread, d_elem)->priority > list_entry (s, struct thread, d_elem)->priority;
+}
 
 /* Idle thread. */
 static struct thread *idle_thread;
@@ -396,13 +400,17 @@ void
 thread_set_priority (int new_priority) { //priority scheduling 수정해야 할것! // 현재 thread의 우선순위가 삽입하는 thread 우선순위보다 낮은 경우 수정 필요
 	// thread_current ()->priority = new_priority; //원래 적혀있던거
 	
-	struct thread *curr = thread_current();
-	curr->priority = new_priority;
-	// struct list_elem *list_begin_elem = list_begin(&ready_list);
-	// struct thread *list_begin_thread = list_entry(list_begin_elem,struct thread, elem);
-	// if(!list_empty(&ready_list) && curr->priority < list_begin_thread->priority)
-	// 	thread_yield(); //list_insert_ordered를 여기 안에서 해주도록 수정함!
-	resort_priority();
+	thread_current ()->org_priority = new_priority;
+	// thread_current()->priority = thread_current()->org_priority;
+	
+	// struct list_elem *t = list_begin(&ready_list);
+	// struct thread * cur_thread;
+	// cur_thread = list_entry (t, struct thread, elem);
+	// if(cur_thread->priority > new_priority){
+	// 	thread_yield(); //preemptive!
+	// }
+	refresh_priority ();
+  	resort_priority ();
 }
 
 /* Returns the current thread's priority. */
@@ -505,11 +513,9 @@ init_thread (struct thread *t, const char *name, int priority) {
 	// struct list_elem d_elem; // donation list elem 저장
 	// struct lock wait_on_lock; //기다리는 lock이 무엇인지 저장해 줄 변수
 	// int org_priority; //원래 priority를 저장해둘 변수
-	list_init(&t->donations);
-	t->wait_on_lock = NULL;
-	t->d_elem.prev = NULL;
-	t->d_elem.next = NULL;
 	t->org_priority = priority;
+	t->wait_on_lock = NULL;
+	list_init (&t->donations);
 
 }
 
@@ -689,4 +695,48 @@ allocate_tid (void) {
 	lock_release (&tid_lock);
 
 	return tid;
+}
+
+/* donate */
+void
+donate_priority (void)
+{
+  int depth;
+  struct thread *c_t = thread_current ();
+
+  for (depth = 0; depth < 8; depth++){
+    if (!c_t->wait_on_lock) break;
+      struct thread *holder = c_t->wait_on_lock->holder;
+      holder->priority = c_t->priority;
+      c_t = holder;
+  }
+}
+
+void
+remove_with_lock (struct lock *lock) //donations list에서 thread를 지움
+{
+  struct list_elem *e;
+  struct thread *cur = thread_current ();
+
+  for (e = list_begin (&cur->donations); e != list_end (&cur->donations); e = list_next (e)){
+    struct thread *t = list_entry (e, struct thread, d_elem);
+    if (t->wait_on_lock == lock) //thread가 기다리는 lock이 release 하는 lock이라면 해당 thread에서 지워줌
+      list_remove (&t->d_elem);
+  }
+}
+
+void
+refresh_priority (void) //priority를 재설정하는 함수
+{
+  struct thread *cur = thread_current (); 
+
+  cur->priority = cur->org_priority;
+  
+  if (!list_empty (&cur->donations)) { //donations 리스트가 비어있지 않다면
+    list_sort (&cur->donations, thread_cmp_donate_priority, 0); //남은 thread를 sort해서
+
+    struct thread *front = list_entry (list_front (&cur->donations), struct thread, d_elem); //가장 높은 priority를 가진 thread를 가져와서
+    if (front->priority > cur->priority) //리스트 안의 가장 높은 우선순위를 가진 thread가 현재 thread우선순위보다 높다면
+      cur->priority = front->priority; //현재 thread의 우선순위에 더 높은 우선순위를 넣어준다.
+  }
 }

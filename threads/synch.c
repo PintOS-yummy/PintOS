@@ -35,6 +35,7 @@
 
 
 bool cmp_priority (const struct list_elem *a,const struct list_elem *b,void *aux UNUSED);
+bool thread_cmp_donate_priority (const struct list_elem *l, const struct list_elem *s, void *aux UNUSED);
 // struct thread *a_t = list_entry(a, struct thread, elem);
 // struct thread *b_t = list_entry(b, struct thread, elem);
 // return a_t->priority > b_t->priority;  //a->priority > b->priority 이면 true
@@ -157,8 +158,8 @@ sema_up (struct semaphore *sema) {
 	}
 		
 	sema->value++;
-	// resort_priority();
-	thread_yield();
+	resort_priority();
+	// thread_yield();
 	intr_set_level (old_level);
 }
 
@@ -234,14 +235,15 @@ lock_acquire (struct lock *lock) {
 	ASSERT (!intr_context ());
 	ASSERT (!lock_held_by_current_thread (lock));
 
+	struct thread *c_t = thread_current();
 	if(lock->holder){ //lock을 누가 잡고 있는 경우 priority 확인
-		if(thread_get_priority() > lock->holder->priority){ //현재 thread priority가 현재 lock을 잡고있는 thread의 priority 보다 높으면
-			//lock을 잡고있는 thread의 priority를 더 높은 priority로 donate 해준다.
-			lock->holder->priority = thread_get_priority();
-		}
+		c_t->wait_on_lock = lock;
+		list_insert_ordered(&lock->holder->donations, &c_t->d_elem, thread_cmp_donate_priority, 0);
+		donate_priority();
 	}
 	sema_down (&lock->semaphore);
-	lock->holder = thread_current ();
+	c_t->wait_on_lock = NULL;
+	lock->holder = c_t;
 }
 
 /* Tries to acquires LOCK and returns true if successful or false
@@ -274,7 +276,9 @@ lock_release (struct lock *lock) {
 	ASSERT (lock != NULL);
 	ASSERT (lock_held_by_current_thread (lock));
 
-	if(thread_current()->org_priority != thread_get_priority) thread_set_priority(thread_current()->org_priority);
+	remove_with_lock (lock);
+  	refresh_priority ();	
+	
 	lock->holder = NULL;
 	sema_up (&lock->semaphore);
 }
