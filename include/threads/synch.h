@@ -4,10 +4,23 @@
 #include <list.h>
 #include <stdbool.h>
 
-/* A counting semaphore. */
+/* A counting semaphore.
+	세마포어 정의하는 구조체
+	unsigned value -> 현재 세마포어 값
+	struct list waiters -> 대기 중인 쓰레드 목록 */
 struct semaphore {
-	unsigned value;             /* Current value. */
-	struct list waiters;        /* List of waiting threads. */
+	unsigned value;             /* 현재 세마포어 값 */
+	struct list waiters;        /* 대기 중인 쓰레드 목록 */
+};
+
+/* One semaphore in a list. */
+struct semaphore_elem {
+	struct list_elem elem;              /* List element. */
+	struct semaphore semaphore;         /* This semaphore. */
+};
+struct semaphore_elem {
+	struct list_elem elem;              /* List element. */
+	struct semaphore semaphore;         /* This semaphore. */
 };
 
 void sema_init (struct semaphore *, unsigned value);
@@ -15,6 +28,9 @@ void sema_down (struct semaphore *);
 bool sema_try_down (struct semaphore *);
 void sema_up (struct semaphore *);
 void sema_self_test (void);
+
+// 추가
+// bool cmp_priority(const struct list_elem *a, const struct list_elem *b, void *aux);
 
 /* Lock. */
 struct lock {
@@ -43,6 +59,7 @@ void cond_broadcast (struct condition *, struct lock *);
  * The compiler will not reorder operations across an
  * optimization barrier.  See "Optimization Barriers" in the
  * reference guide for more information.*/
+// 컴파일러 수준 메모리 장벽을 생성해 최적화 프로그램이 장벽 전체에서 메모리 엑세스 순서를 변경하지 않도록.
 #define barrier() asm volatile ("" : : : "memory")
 
 #endif /* threads/synch.h */
