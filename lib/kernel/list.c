@@ -74,6 +74,7 @@ struct list_elem *list_begin(struct list *list)
 	return list->head.next;
 }
 
+
 /* Returns the element after ELEM in its list.  If ELEM is the
 	 last element in its list, returns the list tail.  Results are
 	 undefined if ELEM is itself a list tail. */

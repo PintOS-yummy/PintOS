@@ -104,14 +104,19 @@ typedef int tid_t;
 struct thread
 {
 	/* Owned by thread.c. */
-	tid_t tid;								 /* Thread identifier. */
-	enum thread_status status; /* Thread state. */
-	char name[16];						 /* Name (for debugging purposes). */
-	int priority;							 /* Priority. */
+	tid_t tid;                          /* Thread identifier. */
+	enum thread_status status;          /* Thread state. */
+	char name[16];                      /* Name (for debugging purposes). */
+	int priority;                       /* Priority. */
+	/* Shared between thread.c and synch.c. */
+	struct list_elem elem;              /* List element. */
 	int64_t wakeup_ticks;
 
-	/* Shared between thread.c and synch.c. */
-	struct list_elem elem; /* List element. */
+	//donate에 필요한 변수
+	struct list donations; //donation 변수
+	struct list_elem d_elem; // donation list elem 저장
+	struct lock *wait_on_lock; //기다리는 lock이 무엇인지 저장해 줄 변수
+	int org_priority; //원래 priority를 저장해둘 변수
 
 #ifdef USERPROG
 	/* Owned by userprog/process.c. */
@@ -145,8 +150,11 @@ void thread_start(void);
 void thread_tick(void);
 void thread_print_stats(void);
 
-typedef void thread_func(void *aux);
-tid_t thread_create(const char *name, int priority, thread_func *, void *);
+void thread_sleep(int64_t ticks);
+void thread_wakeup(int64_t ticks);
+
+typedef void thread_func (void *aux);
+tid_t thread_create (const char *name, int priority, thread_func *, void *);
 
 void thread_block(void);
 void thread_unblock(struct thread *);

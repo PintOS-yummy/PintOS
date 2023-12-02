@@ -1,3 +1,4 @@
+// 초당 100번 똑딱거리는 시스템 타이머
 #include "devices/timer.h"
 #include <debug.h>
 #include <inttypes.h>
@@ -7,6 +8,7 @@
 #include "threads/io.h"
 #include "threads/synch.h"
 #include "threads/thread.h"
+
 
 /* See [8254] for hardware details of the 8254 timer chip. */
 
@@ -19,6 +21,7 @@
 
 /* Number of timer ticks since OS booted. */
 static int64_t ticks;
+// static int64_t wakeup_ticks;
 
 /* Number of loops per timer tick.
 	 Initialized by timer_calibrate(). */
@@ -31,6 +34,7 @@ static void real_time_sleep(int64_t num, int32_t denom);
 
 void thread_sleep(int64_t ticks);	 // 추가한 함수
 void thread_wakeup(int64_t ticks); // 추가한 함수
+
 
 /* Sets up the 8254 Programmable Interval Timer (PIT) to
 	 interrupt PIT_FREQ times per second, and registers the
@@ -79,12 +83,11 @@ void timer_calibrate(void)
 /* Returns the number of timer ticks since the OS booted.
 	운영 체제가 부팅된 이후 경과한 타이머 틱의 수를 반환 */
 int64_t
-timer_ticks(void)
-{
-	enum intr_level old_level = intr_disable();
+timer_ticks (void) { //os 부팅 후 타이머 틱 수를 반환
+	enum intr_level old_level = intr_disable ();  //인터럽트를 비활성화하고 이전 인터럽트 상태를 반환
 	int64_t t = ticks;
-	intr_set_level(old_level);
-	barrier();
+	intr_set_level (old_level); /*LEVEL에 지정된 대로 인터럽트를 활성화 또는 비활성화하고는 이전 인터럽트 상태를 반환*/
+	barrier ();
 	return t;
 }
 
@@ -97,16 +100,17 @@ timer_elapsed(int64_t then)
 	return timer_ticks() - then;
 }
 
-/* Suspends execution for approximately TICKS timer ticks.
-	지정된 ticks가 지나면 실행을 중단함 */
-void timer_sleep(int64_t ticks)
-{
-	int64_t start = timer_ticks(); // start: 시작 시간
+/* Suspends execution for approximately TICKS timer ticks. */
+void
+timer_sleep (int64_t ticks) { //원하는 tick을 지정 해두고 해당 tick만큼 지나면 yield()를 멈춰라
+	int64_t start = timer_ticks (); //start = 시작 시간
 
-	ASSERT(intr_get_level() == INTR_ON); // 인터럽트가 가능한 상태에서만 호출되어야 함을 보장
-	// while (timer_elapsed(start) < ticks) // while 수정하기 -> 수정 완
-	// thread_yield();
-	if (timer_elapsed(start) < ticks) // 아직 깨울시간이 안되었을 때,
+	ASSERT (intr_get_level () == INTR_ON);
+	// busy wait
+	// while (timer_elapsed (start) < ticks) //종료시간이 안되어도 계속 확인을 해 cpu 사용량이 많다. 이를 줄이는 방법을 생각해야할듯?!
+	// 	thread_yield ();
+
+	if(timer_elapsed(start)< ticks) //아직 깨울시간이 안되었을때
 		thread_sleep(start + ticks);
 }
 
@@ -138,11 +142,10 @@ void timer_print_stats(void)
 	타이머 인터럽트가 발생할 때마다 호출되어 'ticks'를 중가시키고,
 	스레드 스케줄링을 위한 thread_tick() 함수를 호출 */
 static void
-timer_interrupt(struct intr_frame *args UNUSED)
-{
-	ticks++; // tick 증가시키기
-	thread_tick();
-	thread_wakeup(ticks); // 한 tick마다 sleep_list에서 깨울 쓰레드 확인
+timer_interrupt (struct intr_frame *args UNUSED) {
+	ticks++;
+	thread_tick ();
+	thread_wakeup(ticks);
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer
