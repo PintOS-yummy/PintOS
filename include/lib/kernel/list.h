@@ -100,6 +100,7 @@ struct list {
    name of the outer structure STRUCT and the member name MEMBER
    of the list element.  See the big comment at the top of the
    file for an example. */
+   //          (멤버의 포인터, 상위 구조체 타입, 멤버 이름)
 #define list_entry(LIST_ELEM, STRUCT, MEMBER)           \
 	((STRUCT *) ((uint8_t *) &(LIST_ELEM)->next     \
 		- offsetof (STRUCT, MEMBER.next)))
@@ -107,7 +108,8 @@ struct list {
 void list_init (struct list *);
 
 /* List traversal. */
-struct list_elem *list_begin (struct list *);
+
+struct list_elem *list_begin (struct list *); // 리스트 구조체의 주소를 인자로 받음
 struct list_elem *list_next (struct list_elem *);
 struct list_elem *list_end (struct list *);
 
