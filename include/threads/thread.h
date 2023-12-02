@@ -28,6 +28,22 @@ typedef int tid_t;
 #define PRI_DEFAULT 31 /* Default priority. */
 #define PRI_MAX 63		 /* Highest priority. */
 
+/* macros for mlfqs
+	n : integer, 
+	x,y : fixed point numbers*/
+#define FC 16384  // 2^14, 고정소수점에서의 소수부를 나타내는 비트 수
+#define convert_n_to_fp(n) ((n) * (FC)) // 정수 n을 고정소수점으로 변환
+#define convert_x_to_int_round_to_zero(x) ((x) / (FC)) // 고정소수점 수 x를 정수로 변환 (반내림)
+#define convert_x_to_int_round_to_nearest(x) ((x) >= 0 ? (((x) + ((FC) / 2)) / FC) : ((((x) - ((FC) / 2)) / FC))) // 고정소수점 수 x를 정수로 변환 (반올림)
+#define add_x_and_y(x,y) ((x) + (y)) // 두 고정소수점 수 x와 y의 합
+#define sub_y_from_x(x,y) ((x) - (y)) // 두 고정소수점 수 x와 y의 차 (x - y)
+#define add_x_and_n(x,n) ((x)+((n) * (FC))) // 고정소수점 수 x와 정수 n의 합
+#define sub_n_from_x(x,n) ((x) - ((n) * (FC))) // 고정소수점 수 x에서 정수 n을 뺀 값 (x - n)
+#define mul_x_by_y(x,y) (((int64_t) (x)) * (y) / (FC)) // 두 고정소수점 수 x와 y의 곱
+#define mul_x_by_n(x,n) ((x) * (n)) // 고정소수점 수 x와 정수 n의 곱
+#define div_x_by_y(x,y) (((int64_t) (x)) * (FC) / (y)) // 고정소수점 수 x를 y로 나눈 값
+#define div_x_by_n(x,n) ((x) / (n)) // 고정소수점 수 x를 정수 n으로 나눈 값
+
 /* A kernel thread or user process.
  *
  * Each thread structure is stored in its own 4 kB page.  The
@@ -109,10 +125,14 @@ struct thread
 	/* Owned by thread.c. */
 	struct intr_frame tf; /* Information for switching */
 	unsigned magic;				/* Detects stack overflow. */
+
+	int nice;
+	int recent_cpu;
 };
 
 // 쓰레드 a와 b의 우선순위 비교, a>b가 참이면 True 반환
-bool cmp_priority(const struct list_elem *a, const struct list_elem *b, int aux);
+bool cmp_priority(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
+bool sema_cmp_priority(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
 
 /* If false (default), use round-robin scheduler.
 	 If true, use multi-level feedback queue scheduler.

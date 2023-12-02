@@ -401,8 +401,9 @@ inplace_merge(struct list_elem *a0, struct list_elem *a1b0,
 /* Sorts LIST according to LESS given auxiliary data AUX, using a
 	 natural iterative merge sort that runs in O(n lg n) time and
 	 O(1) space in the number of elements in LIST.
-	 찾았다!!!! */
-void list_sort(struct list *list, list_less_func *less, int aux)
+	 자연적인 반복 병합 정렬(Natural Iterative Merge Sort)'을 사용하여,
+	 연결 리스트(struct list)를 정렬하는 함수*/
+void list_sort(struct list *list, list_less_func *less, void *aux)
 {
 	size_t output_run_cnt; /* Number of runs output in current pass. */
 
@@ -441,8 +442,9 @@ void list_sort(struct list *list, list_less_func *less, int aux)
 /* Inserts ELEM in the proper position in LIST, which must be
 	 sorted according to LESS given auxiliary data AUX.
 	 Runs in O(n) average case in the number of elements in LIST.
-	 새로운 쓰레드를 우선순위에 맞게 삽입 */
-void list_insert_ordered(struct list *list, struct list_elem *elem, list_less_func *less, int aux)
+	 
+	 쓰레드를 우선순위에 맞게 삽입 */
+void list_insert_ordered(struct list *list, struct list_elem *elem, list_less_func *less, void *aux)
 {
 	struct list_elem *e;
 

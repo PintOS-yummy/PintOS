@@ -66,28 +66,26 @@ static void do_schedule(int status);
 static void schedule(void);
 static tid_t allocate_tid(void);
 
-bool cmp_priority(const struct list_elem *a, const struct list_elem *b, int aux)
+bool cmp_priority(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED)
 {
-	if (aux == 0)
-	{
 	struct thread *thread_a = list_entry(a, struct thread, elem);
 	struct thread *thread_b = list_entry(b, struct thread, elem);
 
 	return thread_a->priority > thread_b->priority;
-	}
-	else
-	{
-		struct semaphore_elem * a_sema_elem = list_entry(a, struct semaphore_elem, elem); 
-		struct semaphore_elem * b_sema_elem = list_entry(b, struct semaphore_elem, elem);
-		
-		struct list_elem *a_sema_begin = list_begin(&(a_sema_elem->semaphore.waiters));
-		struct list_elem *b_sema_begin = list_begin(&(b_sema_elem->semaphore.waiters));
+}
 
-		struct thread *a_thread = list_entry(a_sema_begin, struct thread, elem);
-		struct thread *b_thread = list_entry(b_sema_begin, struct thread, elem);
-		
-		return (a_thread->priority) > (b_thread->priority);
-	}
+bool sema_cmp_priority(const struct list_elem *a, const struct list_elem *b, void *aux)
+{
+	struct semaphore_elem *a_sema_elem = list_entry(a, struct semaphore_elem, elem);
+	struct semaphore_elem *b_sema_elem = list_entry(b, struct semaphore_elem, elem);
+
+	struct list_elem *a_sema_begin = list_begin(&(a_sema_elem->semaphore.waiters));
+	struct list_elem *b_sema_begin = list_begin(&(b_sema_elem->semaphore.waiters));
+
+	struct thread *a_thread = list_entry(a_sema_begin, struct thread, elem);
+	struct thread *b_thread = list_entry(b_sema_begin, struct thread, elem);
+
+	return (a_thread->priority) > (b_thread->priority);
 }
 
 /* Returns true if T appears to point to a valid thread. */
@@ -245,9 +243,9 @@ void thread_print_stats(void)
 	 The code provided sets the new thread's `priority' member to
 	 PRIORITY, but no actual priority scheduling is implemented.
 	 Priority scheduling is the goal of Problem 1-3. */
-tid_t thread_create(const char *name, int priority,
-										thread_func *function, void *aux)
+tid_t thread_create(const char *name, int priority, thread_func *function, void *aux)
 {
+	// printf("####1. thread_create begin.####\n");
 	struct thread *t;
 	tid_t tid;
 
@@ -274,12 +272,17 @@ tid_t thread_create(const char *name, int priority,
 	t->tf.eflags = FLAG_IF;
 
 	/* Add to run queue. */
+	// printf("####2. thread_unblock begin.####\n");
 	thread_unblock(t);
+	// printf("####3. thread_unblock end.####\n");
 
 	// 선점 방식 구현(priority-FIFO FAIL->PASS)
+	// printf("####4. resort_priority begin.####\n");
 	resort_priority();
+	// printf("####5. resort_priority end.####\n");
 
 	return tid;
+	// printf("####6. thread_create end.####\n");
 }
 
 /* Puts the current thread to sleep.  It will not be scheduled
@@ -378,21 +381,24 @@ void thread_exit(void)
 /* Yields the CPU.  The current thread is not put to sleep and
 	 may be scheduled again immediately at the scheduler's whim.
 	 running 쓰레드가 있으면, 현재 쓰레드를 ready_list에 정렬 순서 맞게 삽입,
-	 ready_list_front 쓰레드 실행 */
+	 ready_list_begin 쓰레드 실행 */
 void thread_yield(void)
 {
-	struct thread *curr = thread_current();
+	printf("thread_yield begin.\n");
+
+	struct thread *cur = thread_current();
 	enum intr_level old_level;
 
 	ASSERT(!intr_context());
 
 	old_level = intr_disable();
-	if (curr != idle_thread) // 현재 running 쓰레드가 있으면,
+	if (cur != idle_thread) // 현재 running 쓰레드가 있으면,
 		// list_push_back(&ready_list, &curr->elem); // 여기에 resort_priority() 추가?
-		list_insert_ordered(&ready_list, &curr->elem, cmp_priority, NULL);
+		list_insert_ordered(&ready_list, &cur->elem, cmp_priority, NULL);
 
 	do_schedule(THREAD_READY);
 	intr_set_level(old_level);
+	printf("thread_yield end.\n");
 }
 
 /* Sets the current thread's priority to NEW_PRIORITY.
@@ -408,47 +414,64 @@ void thread_set_priority(int new_priority)
 	resort_priority();
 }
 
-/* running(cur) 쓰레드와 ready_list의 우선순위 비교 후,
- running(cur) 쓰레드를 우선순위 높은 쓰레드로 유지,
- */
+// 현재 실행중인 thread가 ready_list 맨 앞의 값보다 우선순위가 낮은 경우, thread_yield() 호출
+// yield 안에서 다시 list 재정렬을 해주고 다시 schedule()
 void resort_priority(void)
 {
-	struct thread *cur = thread_current(); // 안되면 resort_priority() 인자에 넣기?
-	int cur_priority = cur->priority;			 // running(cur) 쓰레드의 우선순위 값
+	printf("resort_priority begin.\n");
 
-	if (!list_empty(&ready_list)) // 위치를 if문 밖으로 변경(priority-change PASS)
-	{
-		struct list_elem *list_front_elem = list_begin(&ready_list);												 // ready_list에서 우선순위 제일 높은 쓰레드
-		struct thread *list_front_thread = list_entry(list_front_elem, struct thread, elem); // 쓰레드 구조체
-		int list_front_priority = list_front_thread->priority;															 // ready_list에서 우선순위 제일 높은 쓰레드의 우선순위 값
+	struct thread *curr = thread_current();
+	struct thread *list_begin_thread = list_entry(list_begin(&ready_list), struct thread, elem);
 
-		// ready_list가 비어있지 않고, cur 우선순위가 < list_front 우선순위 일 경우,
-		//	idle_thread일 경우도 포함
-		if (cur_priority < list_front_priority)
-		{
-			thread_yield();
-		}
-	}
+	if (!list_empty(&ready_list) && curr->priority < list_begin_thread->priority)
+		thread_yield();
+
+	printf("resort_priority end.\n");
+	// struct thread *cur_thread = thread_current();
+
+	// if (!list_empty(&ready_list)) // 위치를 if문 밖으로 변경(priority-change PASS)
+	// {
+	// 	struct thread *list_begin_thread = list_entry(list_begin(&ready_list), struct thread, elem); // 쓰레드 구조체
+
+	// 	// ready_list가 비어있지 않고, cur 우선순위가 < list_front 우선순위 일 경우,
+	// 	// idle_thread일 경우도 포함
+	// 	// running(cur) 쓰레드의 우선순위 값 < ready_list에서 우선순위 제일 높은 쓰레드의 우선순위 값, 이면 thread_yield
+	// 	if (cur_thread->priority < list_begin_thread->priority)
+	// 	{
+	// 		thread_yield();
+	// 	}
+	// }
 }
 
 /* Returns the current thread's priority.
 	이 함수를 호출한 쓰레드의 우선순위 반환 */
 int thread_get_priority(void)
 {
+	if (!thread_mlfqs) // mlfqs 테스트 케이스가 아닐때 실행하는 부분
+	{
+	}
 	return thread_current()->priority;
 }
 
 /* Sets the current thread's nice value to NICE. */
-void thread_set_nice(int nice UNUSED)
+void thread_set_nice(int nice)
 {
 	/* TODO: Your implementation goes here */
+	struct thread *cur = thread_current();
+	cur->nice = nice; // 현재 쓰레드의 나이스 값을 바꿔줌
+
+	int new_priority = convert_x_to_int_round_to_zero(convert_n_to_fp(PRI_MAX) - convert_n_to_fp((cur->recent_cpu / 4)) - convert_n_to_fp((cur->nice * 2)));
+	printf("##############3%d##################\n", new_priority);
+	thread_set_priority(new_priority);
 }
 
 /* Returns the current thread's nice value. */
 int thread_get_nice(void)
 {
 	/* TODO: Your implementation goes here */
-	return 0;
+	struct thread *cur = thread_current();
+
+	return cur->nice;
 }
 
 /* Returns 100 times the system load average. */
@@ -458,7 +481,10 @@ int thread_get_load_avg(void)
 	return 0;
 }
 
-/* Returns 100 times the current thread's recent_cpu value. */
+/* Returns 100 times the current thread's recent_cpu value.
+	각 타이머 틱마다 실행 중인 스레드의 recent_cpu는 1씩 증가,
+	매초마다, 모든 스레드의 recent_cpu는 다음과 같은 방식으로 업데이트:
+	recent_cpu = (2 * load_avg) / (2 * load_avg + 1) * recent_cpu + nice */
 int thread_get_recent_cpu(void)
 {
 	/* TODO: Your implementation goes here */
@@ -474,8 +500,7 @@ int thread_get_recent_cpu(void)
 	 blocks.  After that, the idle thread never appears in the
 	 ready list.  It is returned by next_thread_to_run() as a
 	 special case when the ready list is empty. */
-static void
-idle(void *idle_started_ UNUSED)
+static void idle(void *idle_started_ UNUSED)
 {
 	struct semaphore *idle_started = idle_started_;
 
@@ -643,24 +668,25 @@ static void thread_launch(struct thread *th)
 /* Schedules a new process. At entry, interrupts must be off.
  * This function modify current thread's status to status and then
  * finds another thread to run and switches to it.
- * It's not safe to call printf() in the schedule(). */
-static void
-do_schedule(int status)
+ * It's not safe to call printf() in the schedule().
+ * 현재 실행 중인 스레드의 상태를 변경하고,
+ * 새로운 스레드를 스케줄링하여 전환하는 것 */
+static void do_schedule(int status)
 {
 	ASSERT(intr_get_level() == INTR_OFF);
 	ASSERT(thread_current()->status == THREAD_RUNNING);
-	while (!list_empty(&destruction_req))
+	while (!list_empty(&destruction_req)) // destruction_req 리스트에 있는 모든 스레드를 회수
 	{
 		struct thread *victim =
 				list_entry(list_pop_front(&destruction_req), struct thread, elem);
-		palloc_free_page(victim);
+		palloc_free_page(victim); // 스레드의 메모리 해제
 	}
 	thread_current()->status = status;
 	schedule();
 }
 
-static void
-schedule(void)
+// 현재 실행 중인 스레드에서 다음 실행할 스레드로 문맥전환을 수행
+static void schedule(void)
 {
 	struct thread *curr = running_thread();
 	struct thread *next = next_thread_to_run();
