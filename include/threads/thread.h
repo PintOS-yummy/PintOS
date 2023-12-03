@@ -9,6 +9,10 @@
 #include "vm/vm.h"
 #endif
 
+/* Idle thread. 
+	.c에서 .h로 이동 */
+static struct thread *idle_thread;
+
 /* List of processes in THREAD_READY state, that is, processes
 	 that are ready to run but not actually running. */
 static struct list ready_list;

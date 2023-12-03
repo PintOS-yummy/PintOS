@@ -37,8 +37,9 @@ bool thread_cmp_donate_priority(const struct list_elem *l, const struct list_ele
 	return list_entry(l, struct thread, d_elem)->priority > list_entry(s, struct thread, d_elem)->priority;
 }
 
-/* Idle thread. */
-static struct thread *idle_thread;
+// /* Idle thread.
+// 	헤더파일로 이동*/
+// static struct thread *idle_thread;
 
 /* Initial thread, the thread running init.c:main(). */
 static struct thread *initial_thread;
@@ -135,7 +136,7 @@ void thread_start(void)
 	struct semaphore idle_started;
 	sema_init(&idle_started, 0);
 	thread_create("idle", PRI_MIN, idle, &idle_started);
-	load_avg = LOAD_AVG_DEFAULT; // load_avg 0으로 초기화
+	LOAD_AVG = LOAD_AVG_DEFAULT; // load_avg 0으로 초기화
 
 	/* Start preemptive thread scheduling. */
 	intr_enable();
@@ -386,6 +387,7 @@ void thread_yield(void)
 		list_insert_ordered(&ready_list, &cur->elem, cmp_priority, 0);
 
 	do_schedule(THREAD_READY);
+
 	intr_set_level(old_level);
 }
 
@@ -413,7 +415,7 @@ void thread_set_priority(int new_priority)
 	{
 		/* mlfqs 스케줄러 일때 우선순위를 임의로 변경할수 없도록 한다. */
 	}
-	
+
 	resort_priority();
 }
 
@@ -467,7 +469,7 @@ int thread_get_load_avg(void) // 수정
 	enum intr_level old_level;
 	old_level = intr_disable(); // 인터럽트 비활성화
 
-	return convert_x_to_int_round_to_nearest(load_avg * 100);
+	return convert_x_to_int_round_to_nearest(LOAD_AVG * 100);
 
 	intr_set_level(old_level); // 인터럽트 활성화
 }
@@ -777,16 +779,19 @@ void remove_with_lock(struct lock *lock) // donations list에서 thread를 지�
 
 void refresh_priority(void) // priority를 재설정하는 함수
 {
-	struct thread *cur = thread_current();
+	if (!thread_mlfqs)
+	{
+		struct thread *cur = thread_current();
 
-	cur->priority = cur->org_priority;
+		cur->priority = cur->org_priority;
 
-	if (!list_empty(&cur->donations))
-	{																														 // donations 리스트가 비어있지 않다면
-		list_sort(&cur->donations, thread_cmp_donate_priority, 0); // 남은 thread를 sort해서
+		if (!list_empty(&cur->donations))
+		{																														 // donations 리스트가 비어있지 않다면
+			list_sort(&cur->donations, thread_cmp_donate_priority, 0); // 남은 thread를 sort해서
 
-		struct thread *front = list_entry(list_front(&cur->donations), struct thread, d_elem); // 가장 높은 priority를 가진 thread를 가져와서
-		if (front->priority > cur->priority)																									 // 리스트 안의 가장 높은 우선순위를 가진 thread가 현재 thread우선순위보다 높다면
-			cur->priority = front->priority;																										 // 현재 thread의 우선순위에 더 높은 우선순위를 넣어준다.
+			struct thread *front = list_entry(list_front(&cur->donations), struct thread, d_elem); // 가장 높은 priority를 가진 thread를 가져와서
+			if (front->priority > cur->priority)																									 // 리스트 안의 가장 높은 우선순위를 가진 thread가 현재 thread우선순위보다 높다면
+				cur->priority = front->priority;																										 // 현재 thread의 우선순위에 더 높은 우선순위를 넣어준다.
+		}
 	}
 }

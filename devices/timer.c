@@ -142,30 +142,48 @@ void timer_print_stats(void)
 	각 타이머 틱마다 실행 중인 스레드의 recent_cpu는 1씩 증가,
 	매초마다, 모든 스레드의 recent_cpu는 다음과 같은 방식으로 업데이트:
 	recent_cpu = (2 * load_avg) / (2 * load_avg + 1) * recent_cpu + nice
-	
+
 	타이머 인터럽트가 발생할 때마다 호출되어 'ticks'를 중가시키고,
 	스레드 스케줄링을 위한 thread_tick() 함수를 호출
 	100ticks = 1sec */
 static void timer_interrupt(struct intr_frame *args UNUSED)
 {
+	// printf("timer_interrupt begin.\n");
 	ticks++;
 	thread_tick();
 	thread_wakeup(ticks);
 
 	if (thread_mlfqs) // mlfqs 스케줄러 일 경우
 	{
+		enum intr_level old_level;
+		old_level = intr_disable(); // 인터럽트 비활성화
+
 		struct thread *cur = thread_current();
 		cur->recent_cpu += FC; // 현재 쓰레드의 recent_cpu 값은 각 틱마다 1 증가(timer_interrupt가 발생할 때마다)
 
-		if (timer_ticks() % 4 == 0) // 매 4틱마다 모든 쓰레드의 우선순위 업데이트
-		{
-			// update_thread_priority(); // 모든 쓰레드 어떻게 순회하지?
-		}
-
 		if (timer_ticks() % TIMER_FREQ == 0) // 매초마다 모든 쓰레드의 recent_cpu 업데이트
 		{																		 // 1초마다 load_avg, recent_cpu, priority 계산?
-			// update_recent_cpu(); // 모든 쓰레드 어떻게 순회하지?
+			int decayed_load_avg = div_x_by_n(mul_x_by_n(LOAD_AVG, 59), 60);
+			READY_THREADS = list_size(&ready_list);
+
+			if (thread_current() != idle_thread) // idle이 아니라면, +1 , idle이면 pass
+			{
+				READY_THREADS += 1;
+			}
+
+			int fp_ready_thread = convert_n_to_fp(READY_THREADS);
+			int decayed_ready_threads = div_x_by_n(fp_ready_thread, 60);
+			LOAD_AVG = add_x_and_y(decayed_load_avg, decayed_ready_threads); // update load average in every sec
+
+			update_recent_cpu();
 		}
+
+		if (timer_ticks() % 4 == 0) // 매 4틱마다 모든 쓰레드의 우선순위 업데이트
+		{
+			update_thread_priority(); // recompute_priority(); // recompute the priority of all threads
+		}
+
+		intr_set_level(old_level); // 인터럽트 활성화
 	}
 }
 
@@ -173,16 +191,34 @@ static void timer_interrupt(struct intr_frame *args UNUSED)
 void update_thread_priority(struct thread *t)
 {
 	/* 해당 스레드가 idle_thread 가 아닌지 검사 */
-	/* priority계산식을 구현 (fixed_point.h의 계산함수 이용) */
+	/* priority 계산식을 구현 (fixed_point.h의 계산함수 이용) */
 }
 
-// 쓰레드 t의 recent_cpu 계산 후 업데이트(mlfgs)
+/* 쓰레드 t의 recent_cpu 계산 후 모든 쓰레드 업데이트(mlfqs)
+	recent_cpu = (2 * load_avg) / (2 * load_avg + 1) * recent_cpu + nice */
 void update_recent_cpu(struct thread *t)
 {
-	// 현재 쓰레드와 ready_list의 쓰레드 업데이트
-	struct thread *cur = thread_current();
-	/* 해당 스레드가 idle_thread 가 아닌지 검사 */
-	/* recent_cpu계산식을 구현 (fixed_point.h의 계산함수 이용) */
+	// 인터럽트 비활성화해야되지 않을까? -> 타이머 인터럽트에서 비활성화!
+	struct list_elem *e;
+	struct thread *thrd;
+	int decay_factor = div_x_by_y(mul_x_by_n(LOAD_AVG,2),add_x_and_n(mul_x_by_n(LOAD_AVG,2), 1));
+	
+	// RUNNING THREAD업데이트
+	thread_current()->recent_cpu = add_x_and_n(mul_x_by_y(decay_factor,thread_current()->recent_cpu),thread_current()->nice);
+
+	// ready_list 업데이트
+	for (e = list_begin (&ready_list); e != list_end (&ready_list); e = list_next (e))
+	{
+		thrd = list_entry(e,struct thread,elem);
+		thrd->recent_cpu = add_x_and_n(mul_x_by_y(decay_factor,thrd->recent_cpu),thrd->nice);
+	}
+
+	// sleep_list 업데이트
+	for (e = list_begin(&sleep_list); e != list_end(&sleep_list); e = list_next(e))
+	{
+		thrd = list_entry(e,struct thread,elem);
+		thrd->recent_cpu = add_x_and_n(mul_x_by_y(decay_factor,thrd->recent_cpu),thrd->nice);
+	}
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer

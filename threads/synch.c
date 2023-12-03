@@ -242,23 +242,25 @@ void lock_init(struct lock *lock)
 	 we need to sleep. */
 void lock_acquire(struct lock *lock)
 {
+	ASSERT(lock != NULL);
+	ASSERT(!intr_context());
+	ASSERT(!lock_held_by_current_thread(lock));
+
+	struct thread *c_t = thread_current();
+
 	if (!thread_mlfqs)
 	{
-		ASSERT(lock != NULL);
-		ASSERT(!intr_context());
-		ASSERT(!lock_held_by_current_thread(lock));
-
-		struct thread *c_t = thread_current();
 		if (lock->holder)
 		{ // lock을 누가 잡고 있는 경우 priority 확인
 			c_t->wait_on_lock = lock;
 			list_insert_ordered(&lock->holder->donations, &c_t->d_elem, thread_cmp_donate_priority, 0);
 			donate_priority();
 		}
-		sema_down(&lock->semaphore);
 		c_t->wait_on_lock = NULL;
-		lock->holder = c_t;
 	}
+
+	lock->holder = c_t; // 에러 해결
+	sema_down(&lock->semaphore);
 }
 
 /* Tries to acquires LOCK and returns true if successful or false
@@ -273,7 +275,6 @@ bool lock_try_acquire(struct lock *lock)
 
 	ASSERT(lock != NULL);
 	ASSERT(!lock_held_by_current_thread(lock));
-
 	success = sema_try_down(&lock->semaphore);
 	if (success)
 		lock->holder = thread_current();
@@ -288,17 +289,19 @@ bool lock_try_acquire(struct lock *lock)
 	 handler. */
 void lock_release(struct lock *lock)
 {
+	ASSERT(lock != NULL);
+	ASSERT(lock_held_by_current_thread(lock));
+
 	if (!thread_mlfqs) // mlfqs 테스트 시 donation 비활성화
 	{
-		ASSERT(lock != NULL);
-		ASSERT(lock_held_by_current_thread(lock));
-
 		remove_with_lock(lock);
 		refresh_priority();
-
-		lock->holder = NULL;
-		sema_up(&lock->semaphore);
 	}
+
+	lock->holder = NULL; // 에러 해결
+
+	sema_up(&lock->semaphore);
+	
 }
 
 /* Returns true if the current thread holds LOCK, false
