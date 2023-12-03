@@ -32,10 +32,12 @@ bool cmp_priority(const struct list_elem *a, const struct list_elem *b, void *au
 	return a_t->priority > b_t->priority; // a->priority > b->priority 이면 true
 }
 
-bool thread_cmp_donate_priority(const struct list_elem *l, const struct list_elem *s, void *aux UNUSED)
+bool thread_cmp_donate_priority(struct list_elem *cur, struct list_elem *before, void *aux)
 {
-	return list_entry(l, struct thread, d_elem)->priority > list_entry(s, struct thread, d_elem)->priority;
+	return list_entry(cur, struct thread, d_elem)->priority > list_entry(before, struct thread, d_elem)->priority;
 }
+
+bool compare_donation_priority (const struct list_elem *cur, const struct list_elem *before, void *aux);
 
 // /* Idle thread.
 // 	헤더파일로 이동*/
@@ -406,17 +408,34 @@ void resort_priority(void)
 void thread_set_priority(int new_priority)
 { // priority scheduling 수정해야 할 것! // 현재 thread의 우선순위가 삽입하는 thread 우선순위보다 낮은 경우 수정 필요
 
-	if (!thread_mlfqs) // 수정
-	{
-		thread_current()->org_priority = new_priority;
-		refresh_priority();
-	}
-	else
-	{
-		/* mlfqs 스케줄러 일때 우선순위를 임의로 변경할수 없도록 한다. */
+	struct thread *cur = thread_current();
+	cur->org_priority = new_priority;
+	cur->priority = cur->org_priority;
+
+	if (!thread_mlfqs)
+	{ // mlfqs 테스트가 아니어야만 도네이션 적용
+		if (!list_empty(&cur->donations))
+		{
+			list_sort(&cur->donations, compare_donation_priority, NULL);
+
+			struct thread *front = list_entry(list_front(&cur->donations), struct thread, d_elem);
+			if (front->priority > cur->priority)
+				cur->priority = front->priority;
+		}
 	}
 
-	resort_priority();
+	struct list_elem *t = list_begin(&ready_list);
+	struct thread *cur_thread;
+	cur_thread = list_entry(t, struct thread, elem);
+
+	if (!list_empty(&ready_list))
+	{
+		struct thread *next = list_entry(list_begin(&ready_list), struct thread, elem);
+		if (next != NULL && next->priority > new_priority)
+		{
+			thread_yield();
+		}
+	}
 }
 
 /* Returns the current thread's priority.

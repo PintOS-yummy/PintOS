@@ -33,7 +33,7 @@
 #include "threads/thread.h"
 
 bool cmp_priority(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
-bool thread_cmp_donate_priority(const struct list_elem *l, const struct list_elem *s, void *aux UNUSED);
+bool thread_cmp_donate_priority(struct list_elem *cur, struct list_elem *before, void *aux);
 // struct thread *a_t = list_entry(a, struct thread, elem);
 // struct thread *b_t = list_entry(b, struct thread, elem);
 // return a_t->priority > b_t->priority;  //a->priority > b->priority 이면 true

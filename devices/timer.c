@@ -188,22 +188,49 @@ static void timer_interrupt(struct intr_frame *args UNUSED)
 }
 
 // 쓰레드 t의 우선순위 계산 후 업데이트(mlfgs)
-void update_thread_priority(struct thread *t)
+void update_thread_priority()
 {
 	/* 해당 스레드가 idle_thread 가 아닌지 검사 */
 	/* priority 계산식을 구현 (fixed_point.h의 계산함수 이용) */
+	struct list_elem *e;
+	struct thread *thrd;
+
+	// 현재 쓰레드 업데이트
+	thread_current()->priority = convert_x_to_int_round_to_nearest(sub_n_from_x(sub_y_from_x(convert_n_to_fp(PRI_MAX),(div_x_by_n(thread_current()->recent_cpu,4))),(2 * thread_current()->nice)));
+	
+	// ready_list 업데이트
+	for (e = list_begin (&ready_list); e != list_end (&ready_list); e = list_next (e))
+	{
+		thrd = list_entry(e,struct thread,elem);
+		thrd->priority = convert_x_to_int_round_to_nearest(sub_n_from_x(sub_y_from_x(convert_n_to_fp(PRI_MAX),(div_x_by_n(thrd->recent_cpu,4))),(2 * thrd->nice)));
+		if (PRI_MAX < thrd->priority) thrd->priority = PRI_MAX;
+		else if (PRI_MIN > thrd->priority) thrd->priority = PRI_MIN;
+	}
+	
+	// sleep_list 업데이트
+	for (e = list_begin(&sleep_list); e != list_end(&sleep_list); e = list_next(e))
+	{
+		thrd = list_entry(e,struct thread,elem);
+		// recent_cpu를 fp로 바꿀까?
+		thrd->priority = convert_x_to_int_round_to_nearest(sub_n_from_x(sub_y_from_x(convert_n_to_fp(PRI_MAX),(div_x_by_n(thrd->recent_cpu,4))),(2 * thrd->nice)));
+		
+		if (PRI_MAX < thrd->priority)
+			thrd->priority = PRI_MAX;
+		else if (PRI_MIN > thrd->priority)
+			thrd->priority = PRI_MIN;
+	}
 }
 
 /* 쓰레드 t의 recent_cpu 계산 후 모든 쓰레드 업데이트(mlfqs)
 	recent_cpu = (2 * load_avg) / (2 * load_avg + 1) * recent_cpu + nice */
-void update_recent_cpu(struct thread *t)
+void update_recent_cpu()
 {
 	// 인터럽트 비활성화해야되지 않을까? -> 타이머 인터럽트에서 비활성화!
 	struct list_elem *e;
 	struct thread *thrd;
 	int decay_factor = div_x_by_y(mul_x_by_n(LOAD_AVG,2),add_x_and_n(mul_x_by_n(LOAD_AVG,2), 1));
 	
-	// RUNNING THREAD업데이트
+	// 현재 쓰레드 업데이트
 	thread_current()->recent_cpu = add_x_and_n(mul_x_by_y(decay_factor,thread_current()->recent_cpu),thread_current()->nice);
 
 	// ready_list 업데이트
