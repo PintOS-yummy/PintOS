@@ -8,7 +8,7 @@
 #include "threads/io.h"
 #include "threads/synch.h"
 #include "threads/thread.h"
-
+#include "threads/fixed_point.h" // mlfqs 관련 고정 소수점 헤더 파일
 
 /* See [8254] for hardware details of the 8254 timer chip. */
 
@@ -34,7 +34,6 @@ static void real_time_sleep(int64_t num, int32_t denom);
 
 void thread_sleep(int64_t ticks);	 // 추가한 함수
 void thread_wakeup(int64_t ticks); // 추가한 함수
-
 
 /* Sets up the 8254 Programmable Interval Timer (PIT) to
 	 interrupt PIT_FREQ times per second, and registers the
@@ -83,11 +82,12 @@ void timer_calibrate(void)
 /* Returns the number of timer ticks since the OS booted.
 	운영 체제가 부팅된 이후 경과한 타이머 틱의 수를 반환 */
 int64_t
-timer_ticks (void) { //os 부팅 후 타이머 틱 수를 반환
-	enum intr_level old_level = intr_disable ();  //인터럽트를 비활성화하고 이전 인터럽트 상태를 반환
+timer_ticks(void)
+{																							// os 부팅 후 타이머 틱 수를 반환
+	enum intr_level old_level = intr_disable(); // 인터럽트를 비활성화하고 이전 인터럽트 상태를 반환
 	int64_t t = ticks;
-	intr_set_level (old_level); /*LEVEL에 지정된 대로 인터럽트를 활성화 또는 비활성화하고는 이전 인터럽트 상태를 반환*/
-	barrier ();
+	intr_set_level(old_level); /*LEVEL에 지정된 대로 인터럽트를 활성화 또는 비활성화하고는 이전 인터럽트 상태를 반환*/
+	barrier();
 	return t;
 }
 
@@ -101,16 +101,16 @@ timer_elapsed(int64_t then)
 }
 
 /* Suspends execution for approximately TICKS timer ticks. */
-void
-timer_sleep (int64_t ticks) { //원하는 tick을 지정 해두고 해당 tick만큼 지나면 yield()를 멈춰라
-	int64_t start = timer_ticks (); //start = 시작 시간
+void timer_sleep(int64_t ticks)
+{																 // 원하는 tick을 지정 해두고 해당 tick만큼 지나면 yield()를 멈춰라
+	int64_t start = timer_ticks(); // start = 시작 시간
 
-	ASSERT (intr_get_level () == INTR_ON);
+	ASSERT(intr_get_level() == INTR_ON);
 	// busy wait
 	// while (timer_elapsed (start) < ticks) //종료시간이 안되어도 계속 확인을 해 cpu 사용량이 많다. 이를 줄이는 방법을 생각해야할듯?!
 	// 	thread_yield ();
 
-	if(timer_elapsed(start)< ticks) //아직 깨울시간이 안되었을때
+	if (timer_elapsed(start) < ticks) // 아직 깨울시간이 안되었을때
 		thread_sleep(start + ticks);
 }
 
@@ -139,13 +139,50 @@ void timer_print_stats(void)
 }
 
 /* Timer interrupt handler.
+	각 타이머 틱마다 실행 중인 스레드의 recent_cpu는 1씩 증가,
+	매초마다, 모든 스레드의 recent_cpu는 다음과 같은 방식으로 업데이트:
+	recent_cpu = (2 * load_avg) / (2 * load_avg + 1) * recent_cpu + nice
+	
 	타이머 인터럽트가 발생할 때마다 호출되어 'ticks'를 중가시키고,
-	스레드 스케줄링을 위한 thread_tick() 함수를 호출 */
-static void
-timer_interrupt (struct intr_frame *args UNUSED) {
+	스레드 스케줄링을 위한 thread_tick() 함수를 호출
+	100ticks = 1sec */
+static void timer_interrupt(struct intr_frame *args UNUSED)
+{
 	ticks++;
-	thread_tick ();
+	thread_tick();
 	thread_wakeup(ticks);
+
+	if (thread_mlfqs) // mlfqs 스케줄러 일 경우
+	{
+		struct thread *cur = thread_current();
+		cur->recent_cpu += FC; // 현재 쓰레드의 recent_cpu 값은 각 틱마다 1 증가(timer_interrupt가 발생할 때마다)
+
+		if (timer_ticks() % 4 == 0) // 매 4틱마다 모든 쓰레드의 우선순위 업데이트
+		{
+			// update_thread_priority(); // 모든 쓰레드 어떻게 순회하지?
+		}
+
+		if (timer_ticks() % TIMER_FREQ == 0) // 매초마다 모든 쓰레드의 recent_cpu 업데이트
+		{																		 // 1초마다 load_avg, recent_cpu, priority 계산?
+			// update_recent_cpu(); // 모든 쓰레드 어떻게 순회하지?
+		}
+	}
+}
+
+// 쓰레드 t의 우선순위 계산 후 업데이트(mlfgs)
+void update_thread_priority(struct thread *t)
+{
+	/* 해당 스레드가 idle_thread 가 아닌지 검사 */
+	/* priority계산식을 구현 (fixed_point.h의 계산함수 이용) */
+}
+
+// 쓰레드 t의 recent_cpu 계산 후 업데이트(mlfgs)
+void update_recent_cpu(struct thread *t)
+{
+	// 현재 쓰레드와 ready_list의 쓰레드 업데이트
+	struct thread *cur = thread_current();
+	/* 해당 스레드가 idle_thread 가 아닌지 검사 */
+	/* recent_cpu계산식을 구현 (fixed_point.h의 계산함수 이용) */
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer
