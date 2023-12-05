@@ -133,7 +133,7 @@ void
 timer_print_stats (void) {
 	printf ("Timer: %"PRId64" ticks\n", timer_ticks ());
 }
-
+
 void
 update_recent_cpu(void){
 	struct list_elem *e;
