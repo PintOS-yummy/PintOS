@@ -178,6 +178,9 @@ error:
 void
 argument_stack(const int argc, const char **argv, struct intr_frame _if)
 {
+	// 인자가 push된 스택의 주소값을 저장하는 배열
+	char *addr[65];
+
 	// 스택에 push 시작
 	for (int i = argc - 1; i >= 0; i--) // 역순으로 argv[] 요소를 스택에 push
 	{
@@ -185,8 +188,11 @@ argument_stack(const int argc, const char **argv, struct intr_frame _if)
 
 		_if.rsp -= arg_length; // 스택은 위로 채움
 
-		// 인수 스택에 복사								       null 포함
-		memcpy(&_if.rsp, argv[i], strlen(argv[i]) + 1); 
+		// 인수 스택에 복사
+		memcpy(&_if.rsp, *argv[i], arg_length);
+		
+		// rsp 저장
+		addr[argc] = &_if.rsp;
 	}
 
 	// 주소값 8byte의 배수로 padding
@@ -204,17 +210,13 @@ argument_stack(const int argc, const char **argv, struct intr_frame _if)
 	memset(&_if.rsp, 0, 8);
 
 
-	// argv[]의 주소를 저장
+	// argv[]의 주소를 저장->깃북다시보기, 인자가 저장되어있는 스택의 주소를 push
 	printf("\n\n3\n\n");
 	for (int i = argc - 1; i >= 0; i--)
 	{
-		// int arg_length = strlen(argv[i] + 1); 
-
-		// _if.rsp -= arg_length; -> 이게 아니지 주소 값 만큼 빼줘야지
 		_if.rsp -= 8;
 
-		// memcpy(&_if.rsp, &argv[i], sizeof(&argv[i]));
-		memcpy(&_if.rsp, &argv[i], 8);
+		memcpy(&_if.rsp, *addr[i], 8); // argv는 스택의 주소가 아님!!
 	}
 
 	// argv[] 주소 값 가리키는 포인터의 주소 
@@ -224,8 +226,6 @@ argument_stack(const int argc, const char **argv, struct intr_frame _if)
 	// 인자 개수(argc) 저장
 	printf("\n\n5\n\n");
 	_if.R.rdi = argc;
-
-	// hex_dump(_if.rsp, _if.rsp, USER_STACK - _if.rsp, true);
 
 	// fake address
 	printf("\n\n6\n\n");
