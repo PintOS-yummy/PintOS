@@ -27,6 +27,9 @@ static bool load(const char *file_name, struct intr_frame *if_);
 static void initd(void *f_name);
 static void __do_fork(void *);
 
+void
+hex_dump (uintptr_t ofs, const void *buf_, size_t size, bool ascii); // 추가
+
 /* General process initializer for initd and other process. */
 static void
 process_init(void)
@@ -172,11 +175,64 @@ error:
 	thread_exit();
 }
 
-// void
-// argument_stack(parse, count, &_if.esp)
-// {
+void
+argument_stack(const int argc, const char **argv, struct intr_frame _if)
+{
+	// 스택에 push 시작
+	for (int i = argc - 1; i >= 0; i--) // 역순으로 argv[] 요소를 스택에 push
+	{
+		int arg_length = strlen(argv[i]) + 1; // null 종료자('\n') 포함한 인수 길이
 
-// }
+		_if.rsp -= arg_length; // 스택은 위로 채움
+
+		// 인수 스택에 복사								       null 포함
+		memcpy(&_if.rsp, argv[i], strlen(argv[i]) + 1); 
+	}
+
+	// 주소값 8byte의 배수로 padding
+	printf("\n\n1\n\n");
+	if (_if.rsp % 8)
+	{
+		// _if.rsp -= (_if.rsp % 8); // 8의 배수로 만들고,
+		_if.rsp -= 8 - (_if.rsp % 8);
+		memset(&_if.rsp, 0, 8 - (_if.rsp % 8));
+	}
+
+	// sentinel: 8byte 0 추가하기
+	printf("\n\n2\n\n");
+	_if.rsp -= 8; // 8바이트만큼 감소
+	memset(&_if.rsp, 0, 8);
+
+
+	// argv[]의 주소를 저장
+	printf("\n\n3\n\n");
+	for (int i = argc - 1; i >= 0; i--)
+	{
+		// int arg_length = strlen(argv[i] + 1); 
+
+		// _if.rsp -= arg_length; -> 이게 아니지 주소 값 만큼 빼줘야지
+		_if.rsp -= 8;
+
+		// memcpy(&_if.rsp, &argv[i], sizeof(&argv[i]));
+		memcpy(&_if.rsp, &argv[i], 8);
+	}
+
+	// argv[] 주소 값 가리키는 포인터의 주소 
+	printf("\n\n4\n\n");
+	_if.R.rsi = _if.rsp;
+	
+	// 인자 개수(argc) 저장
+	printf("\n\n5\n\n");
+	_if.R.rdi = argc;
+
+	// hex_dump(_if.rsp, _if.rsp, USER_STACK - _if.rsp, true);
+
+	// fake address
+	printf("\n\n6\n\n");
+	_if.rsp -= 8;
+	memcpy(&_if.rsp, 0, 8);
+	printf("\n\n7\n\n");
+}
 
 /* Switch the current execution context to the f_name.
  * Returns -1 on fail.
@@ -186,7 +242,7 @@ int process_exec(void *f_name)
 	char *file_name = f_name;
 	bool success;
 
-	// 파싱 // 추가
+	// 파싱
 	char *save_ptr;
 	char *token = strtok_r(f_name, " ", &save_ptr);
 	// char *argv[128];
@@ -211,6 +267,7 @@ int process_exec(void *f_name)
 	 * 실행 정보를 해당 멤버에 저장하기 때문입니다.
 	 */
 	struct intr_frame _if;
+
 	_if.ds = _if.es = _if.ss = SEL_UDSEG;
 	_if.cs = SEL_UCSEG;
 	_if.eflags = FLAG_IF | FLAG_MBS; // 인터럽트 활성화 플래그와 모든 인터럽트를 무시하는 플래그를 설정
@@ -223,66 +280,11 @@ int process_exec(void *f_name)
 	/* And then load the binary */
 	success = load(file_name, &_if);
 
-	// argument_stack(parse, count, &if_.esp); 
+	printf("\n\nstart: argument_stack\n\n");
+	argument_stack(argc, argv, _if); // 인자 스택에 push
+	printf("\n\nend: argument_stack\n\n");
 
-	// 스택에 push 하는 함수
-	// uintptr_t _if.rsp; // 초기 스택 포인터 계산
-	for (int i = argc - 1; i >= 0; i--) // 역순으로 argv[] 요소를 스택에 push
-	{
-		int arg_length = strlen(argv[i] + 1); // null 종료자('\n') 포함한 인수 길이
-
-		_if.rsp -= arg_length;
-
-		// 인수 스택에 복사								       null 포함
-		memcpy(&_if.rsp, argv[i], sizeof(argv[i]) + 1); // 스택은 위로 채움	// &주소연산자 추가
-	}
-
-	printf("\n\n1\n\n");
-	// 주소값을 8byte의 배수로 padding
-	if (_if.rsp % 8)
-	{
-		_if.rsp -= _if.rsp % 8; // 8의 배수로 만들고, // _if.rsp = _if.rsp - _if.rsp % 8;에서 패딩 방법 수정
-		memset(_if.rsp, 0, _if.rsp % 8);
-	}
-
-	printf("\n\n2\n\n");
-	// 8byte 0 추가하기
-	_if.rsp -= 8; // 8바이트만큼 감소
-	memset(_if.rsp, 0, 8);
-
-	printf("\n\n3\n\n");
-	// argv[]의 주소를 저장
-	for (int i = argc - 1; i >= 0; i--)
-	{
-		int arg_length = strlen(argv[i] + 1);
-
-		_if.rsp -= arg_length;
-
-		memcpy(&_if.rsp, &argv[i], sizeof(&argv[i]));
-	}
-
-	printf("\n\n4\n\n");
-	// argv[] 주소 값 가리키는 포인터의 주소
-	_if.rsp -= sizeof(argv[0]);
-	memcpy(&_if.rsp, &argv[0], sizeof(&argv[0]));
-
-	printf("\n\n5\n\n");
-	// 인자 개수(argc) 스택에 push
-	_if.rsp -= sizeof(argc);
-	memcpy(&_if.rsp, &argc, sizeof(argc)); // ?
-
-	printf("\n\n6\n\n");
-	// fake address
-	_if.rsp -= 8;
-	memcpy(&_if.rsp, 0, 8);
-
-	printf("\n\n7\n\n");
-	// 범용 레지스터에 저장
-	_if.R.rsi = &argv[0];
-	_if.R.rdi = argc;
-	
-	printf("\n\n8\n\n");
-	hex_dump(_if.rsp, _if.rsp, KERN_BASE - _if.rsp, true);
+	hex_dump(_if.rsp, _if.rsp, (USER_STACK - _if.rsp), true);
 
 	/* If load failed, quit. */
 	palloc_free_page(file_name);
