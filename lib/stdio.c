@@ -543,12 +543,18 @@ __printf (const char *format,
 	__vprintf (format, args, output, aux);
 	va_end (args);
 }
-
+
 /* Dumps the SIZE bytes in BUF to the console as hex bytes
    arranged 16 per line.  Numeric offsets are also included,
    starting at OFS for the first byte in BUF.  If ASCII is true
    then the corresponding ASCII characters are also rendered
    alongside. */
+/* 
+ * BUF의 SIZE 바이트를 콘솔에 16진수 바이트 형태로 덤프합니다.
+ * 한 줄에 16 바이트씩 배열됩니다. 또한, BUF의 첫 바이트부터 시작하는
+ * 수치 오프셋도 포함됩니다. ASCII가 true이면 해당하는 ASCII 문자도
+ * 함께 렌더링됩니다.
+ */
 void
 hex_dump (uintptr_t ofs, const void *buf_, size_t size, bool ascii) {
 	const uint8_t *buf = buf_;

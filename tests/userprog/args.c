@@ -8,6 +8,10 @@
 int
 main (int argc, char *argv[]) 
 {
+  // printf("\ninside main()\n");
+  // printf("\nargc: %d\n", argc);
+  // printf("\nargv[]: %s\n", argv);
+
   int i;
 
   test_name = "args";

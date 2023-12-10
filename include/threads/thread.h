@@ -18,6 +18,15 @@ enum thread_status {
 	THREAD_DYING        /* About to be destroyed. */
 };
 
+/* 
+ * load status
+ * The binary file is successfully loaded? */
+enum load_status
+{
+	LOAD_SUCCESS,
+	LOAD_FAILURE
+};
+
 /* Thread identifier type.
    You can redefine this to whatever type you like. */
 typedef int tid_t;
@@ -119,6 +128,19 @@ struct thread {
 
 	int nice;
 	int recent_cpu;
+
+	struct thread *parent; // 부모 프로세스에 대한 포인터 // userprog
+	struct list_elem sibling_elem; // 형제 프로세스에 대한 리스트
+	struct list children; // 자식 프로세스에 대한 리스트
+
+	// exec()을 위한 세마포어 추가하기
+
+	enum load_status load_status; // load status // userprog
+
+	int exit_status;
+
+	struct file *fdt[64]; // file descriptor table 구조체(배열) //?**fdt?
+	int next_fd;
 
 #ifdef USERPROG
 	/* Owned by userprog/process.c. */

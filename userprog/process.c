@@ -176,62 +176,55 @@ error:
 }
 
 void
-argument_stack(const int argc, const char **argv, struct intr_frame _if)
+argument_stack(int argc, const char **argv, struct intr_frame *_if)
 {
 	// 인자가 push된 스택의 주소값을 저장하는 배열
 	char *addr[65];
+	int cnt = argc;
 
 	// 스택에 push 시작
-	for (int i = argc - 1; i >= 0; i--) // 역순으로 argv[] 요소를 스택에 push
+	for (int i = cnt - 1; i >= 0; i--) // 역순으로 argv[] 요소를 스택에 push
 	{
 		int arg_length = strlen(argv[i]) + 1; // null 종료자('\n') 포함한 인수 길이
+		
+		_if->rsp -= arg_length; // 포인터 이동
 
-		_if.rsp -= arg_length; // 스택은 위로 채움
+		// rsp 저장
+		addr[i] = (char *)_if->rsp; // 타입캐스팅 이유?
 
 		// 인수 스택에 복사
-		memcpy(&_if.rsp, *argv[i], arg_length);
-		
-		// rsp 저장
-		addr[argc] = &_if.rsp;
+		memcpy(_if->rsp, argv[i], arg_length);
 	}
 
 	// 주소값 8byte의 배수로 padding
-	printf("\n\n1\n\n");
-	if (_if.rsp % 8)
+	if (_if->rsp % 8)
 	{
 		// _if.rsp -= (_if.rsp % 8); // 8의 배수로 만들고,
-		_if.rsp -= 8 - (_if.rsp % 8);
-		memset(&_if.rsp, 0, 8 - (_if.rsp % 8));
+		_if->rsp -= 8 - (_if->rsp % 8);
+		memset(_if->rsp, 0, 8 - (_if->rsp % 8));
 	}
 
 	// sentinel: 8byte 0 추가하기
-	printf("\n\n2\n\n");
-	_if.rsp -= 8; // 8바이트만큼 감소
-	memset(&_if.rsp, 0, 8);
+	_if->rsp -= 8; // 8바이트만큼 감소
+	memset(_if->rsp, 0, 8);
 
-
-	// argv[]의 주소를 저장->깃북다시보기, 인자가 저장되어있는 스택의 주소를 push
-	printf("\n\n3\n\n");
+	// addr[]에 있는 argv 인자의 주소를 저장
 	for (int i = argc - 1; i >= 0; i--)
 	{
-		_if.rsp -= 8;
+		_if->rsp -= 8;
 
-		memcpy(&_if.rsp, *addr[i], 8); // argv는 스택의 주소가 아님!!
+		memcpy(_if->rsp, &addr[i], 8); // argv는 스택의 주소가 아님!! // 왜 &? addr에는 주소값이 데이터로 들어가있는데?
 	}
 
 	// argv[] 주소 값 가리키는 포인터의 주소 
-	printf("\n\n4\n\n");
-	_if.R.rsi = _if.rsp;
+	_if->R.rsi = _if->rsp;
 	
 	// 인자 개수(argc) 저장
-	printf("\n\n5\n\n");
-	_if.R.rdi = argc;
+	_if->R.rdi = argc;
 
 	// fake address
-	printf("\n\n6\n\n");
-	_if.rsp -= 8;
-	memcpy(&_if.rsp, 0, 8);
-	printf("\n\n7\n\n");
+	_if->rsp -= 8;
+	memset(_if->rsp, 0, 8);
 }
 
 /* Switch the current execution context to the f_name.
@@ -242,21 +235,18 @@ int process_exec(void *f_name)
 	char *file_name = f_name;
 	bool success;
 
-	// 파싱
 	char *save_ptr;
 	char *token = strtok_r(f_name, " ", &save_ptr);
-	// char *argv[128];
 	char *argv[65];
 	int argc = 0;
 
+	// 파싱
 	while (token != NULL) // f_name의 모든 토큰 파싱해서 argv에 push
 	{											// argc는 인자 개수
 		argv[argc] = token;
-		// printf("\n\ntoken: %s\n\n", token);
 		token = strtok_r(NULL, " ", &save_ptr);
 		argc++;
 	}
-	// printf("\n\nargc: %d\n\n", argc); // 인자 개수 확인
 
 	/* We cannot use the intr_frame in the thread structure.
 	 * This is because when current thread rescheduled,
@@ -280,11 +270,9 @@ int process_exec(void *f_name)
 	/* And then load the binary */
 	success = load(file_name, &_if);
 
-	printf("\n\nstart: argument_stack\n\n");
-	argument_stack(argc, argv, _if); // 인자 스택에 push
-	printf("\n\nend: argument_stack\n\n");
+	argument_stack(argc, argv, &_if); // 인자 스택에 push
 
-	hex_dump(_if.rsp, _if.rsp, (USER_STACK - _if.rsp), true);
+	// hex_dump(_if.rsp, _if.rsp, (USER_STACK - _if.rsp), true);
 
 	/* If load failed, quit. */
 	palloc_free_page(file_name);
@@ -325,12 +313,12 @@ int process_wait(tid_t child_tid UNUSED)
 	 * XXX:       추가할 것을 권장합니다.
 	 */
 
-	// int cnt = 9999999; // process_wait이 너무 일찍 끝나서 로깅이 안될수도 있음
-	// while (cnt-- > 0)
-	// {
-	// }
-	while (1) {} // 핀토스에게 자식을 기다리고 있다고 속이기 위해, 무한 루프를 걸어준다.
-	return -1;
+	int cnt = 9999999; // process_wait이 너무 일찍 끝나서 로깅이 안될수도 있음
+	while (cnt-- > 0)
+	{
+	}
+// 	while (1) {} // 핀토스에게 자식을 기다리고 있다고 속이기 위해, 무한 루프를 걸어준다.
+// 	return -1;
 }
 
 /* Exit the process. This function is called by thread_exit (). */
