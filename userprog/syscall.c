@@ -25,8 +25,20 @@ void sys_exit(int status);
 int sys_write(int fd, const void *buffer, unsigned size);
 bool sys_create(const char *file, unsigned initial_size);
 struct file *filesys_open(const char *name);
-void open_(const char *name);
+int sys_open(const char *name);
 void file_close(struct file *file);
+uint8_t input_getc(void);
+off_t file_read(struct file *file, void *buffer, off_t size);
+static struct file *get_file_fd(int fd);
+off_t file_length(struct file *file);
+off_t file_tell (struct file *file);
+void file_seek (struct file *file, off_t new_pos);
+off_t file_tell (struct file *file);
+unsigned sys_tell(int fd);
+void sys_seek(int fd, unsigned position);
+bool filesys_remove (const char *name);
+bool sys_remove(const char *file);
+
 
 /* System call.
  *
@@ -101,12 +113,8 @@ void syscall_handler(struct intr_frame *f)
 	 */
 	switch (f->R.rax)
 	{
-	case SYS_HALT:
-		sys_halt();
-		break; // 0번
-	case SYS_EXIT:
-		sys_exit(f->R.rdi);
-		break;			 // 1번
+	case SYS_HALT:  sys_halt();  break; // 0번
+	case SYS_EXIT:  sys_exit(f->R.rdi);  break;			 // 1번
 	case SYS_FORK: /*fork_(f->R.rdi);*/
 		break;			 // 2번
 	case SYS_EXEC: /*exec_(f->R.rdi);*/
@@ -114,30 +122,14 @@ void syscall_handler(struct intr_frame *f)
 	case SYS_WAIT:
 		// wait_(f->R.rdi);
 		break;
-	case SYS_CREATE:
-		f->R.rax = sys_create(f->R.rdi, f->R.rsi);
-		break; // 5번
-	case SYS_REMOVE:
-		// remove_(f->R.rdi);
-		break;
-	case SYS_OPEN:
-		f->R.rax = sys_open(f->R.rdi);
-		break;
-	case SYS_FILESIZE:
-		// filesize_(f->R.rdi);
-		break;
-	case SYS_READ:
-		// read_(f->R.rdi, f->R.rsi, f->R.rdx);
-		break;
-	case SYS_WRITE:
-		f->R.rax = sys_write(f->R.rdi, f->R.rsi, f->R.rdx);
-		break; // 10번
-	case SYS_SEEK:
-		// seek_(f->R.rdi, f->R.rsi);
-		break;
-	case SYS_TELL:
-		// tell_(f->R.rdi);
-		break;
+	case SYS_CREATE:  f->R.rax = sys_create(f->R.rdi, f->R.rsi);  break; // 5번
+	case SYS_REMOVE:  f->R.rax = sys_remove(f->R.rdi);  break;
+	case SYS_OPEN:  f->R.rax = sys_open(f->R.rdi);  break;
+	case SYS_FILESIZE:  f->R.rax = sys_filesize(f->R.rdi);  break;
+	case SYS_READ:  f->R.rax = sys_read(f->R.rdi, f->R.rsi, f->R.rdx);  break; // sys_filesize() 구현해야 테스트 통과함
+	case SYS_WRITE:  f->R.rax = sys_write(f->R.rdi, f->R.rsi, f->R.rdx);  break; // 10번
+	case SYS_SEEK: sys_seek(f->R.rdi, f->R.rsi);  break;
+	case SYS_TELL:  f->R.rax = sys_tell(f->R.rdi);  break;
 	case SYS_CLOSE:  sys_close(f->R.rdi);  break;
 	default:
 		printf("존재하지 않는 case\n");
@@ -146,13 +138,15 @@ void syscall_handler(struct intr_frame *f)
 	// thread_exit ();
 }
 
-void sys_halt(void)
+void 
+sys_halt(void)
 {
 	power_off();
 	NOT_REACHED();
 }
 
-void sys_exit(int status)
+void 
+sys_exit(int status)
 {
 	struct thread *curr = thread_current();
 	curr->exit_status = status;
@@ -160,16 +154,16 @@ void sys_exit(int status)
 	thread_exit();
 }
 
-bool sys_create(const char *file, unsigned initial_size)
+bool 
+sys_create(const char *file, unsigned initial_size)
 {
-
 	// 포인터 검사하는 함수 추가하기
 	check_page_fault(file);
 
 	return filesys_create(file, initial_size);
 }
 
-int
+int 
 sys_open(const char *name)
 {
 	check_page_fault(name);
@@ -187,13 +181,39 @@ sys_open(const char *name)
 		if (!curr->fdt[i])
 		{
 			curr->fdt[i] = get_file;
-
 			return i;
 		}
 	}
 
 	// close 해주기
 	// sys_close(curr->fdt[i]); // 고치기
+	return -1;
+}
+
+int 
+sys_filesize(int fd)
+{	
+	return file_length(get_file_fd(fd));
+}
+
+int 
+sys_read(int fd, void *buffer, unsigned size)
+{
+	check_page_fault(buffer);
+
+	if (!(get_file_fd(fd) == NULL))
+	{
+
+		if (fd == 0) // 사용자가 입력
+		{
+			return strlen(input_getc());
+		}
+		else
+		{
+			return file_read(get_file_fd(fd), buffer, size);
+		}
+	}
+
 	return -1;
 }
 
@@ -208,7 +228,6 @@ static struct file
 	return curr->fdt[fd];
 }
 
-// fd에 write하고 다음 fd 반환?
 int 
 sys_write(int fd, const void *buffer, unsigned size)
 {
@@ -220,23 +239,20 @@ sys_write(int fd, const void *buffer, unsigned size)
 		/* 콘솔에 putbuf() 이용해서 write
 		 * putbuf(): 정확히 size_t n 만큼만 출력함 */
 		putbuf(buffer, size);
-
 		return size;
 	}
 	else // fd가 1이 아니고, 유효한 값이면,
 	{
 		// fdt[fd]에 buffer 값 작성
-		// return 몇 바이트 write 했는지 반환
 		// "Writes size bytes from buffer to the open file fd." <- 구현하기
 		if (get_file_fd(fd) == NULL) // 추가
 			return -1;
 		else
 		{
 			// file_allow_write(thread_current()->fdt[fd]); // 추가
-			return file_write(get_file_fd(fd), buffer, size);
+			return file_write(get_file_fd(fd), buffer, size); // return 몇 바이트 write 했는지 반환
 		}
 	}
-
 	// return -1; // fd가 유효하지 않은 값인 경우,
 }
 
@@ -251,11 +267,31 @@ check_page_fault(void *uadder)
 	}
 }
 
+unsigned
+sys_tell(int fd)
+{
+	return file_tell(get_file_fd(fd));
+}
+
+void 
+sys_seek(int fd, unsigned position)
+{
+	return file_seek(get_file_fd(fd), position);
+}
+
+bool 
+sys_remove(const char *file)
+{
+	check_page_fault(file);
+
+	return filesys_remove (file);
+}
+
 void 
 sys_close(int fd)
 {
 	struct thread *curr = thread_current();
-	
+
 	for (int i = 2; i < (sizeof(curr->fdt) / sizeof(curr->fdt[0])); i++)
 		if (!curr->fdt[i])
 		{
