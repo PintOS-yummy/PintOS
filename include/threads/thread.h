@@ -9,28 +9,37 @@
 #include "vm/vm.h"
 #endif
 
+
 /* States in a thread's life cycle. */
-enum thread_status
+enum thread_status {
+	THREAD_RUNNING,     /* Running thread. */
+	THREAD_READY,       /* Not running but ready to run. */
+	THREAD_BLOCKED,     /* Waiting for an event to trigger. */
+	THREAD_DYING        /* About to be destroyed. */
+};
+
+/* 
+ * load status
+ * The binary file is successfully loaded? */
+enum load_status
 {
-	THREAD_RUNNING, /* Running thread. */
-	THREAD_READY,		/* Not running but ready to run. */
-	THREAD_BLOCKED, /* Waiting for an event to trigger. */
-	THREAD_DYING		/* About to be destroyed. */
+	LOAD_SUCCESS,
+	LOAD_FAILURE
 };
 
 /* Thread identifier type.
-	 You can redefine this to whatever type you like. */
+   You can redefine this to whatever type you like. */
 typedef int tid_t;
-#define TID_ERROR ((tid_t)-1) /* Error value for tid_t. */
+#define TID_ERROR ((tid_t) -1)          /* Error value for tid_t. */
 
 /* Thread priorities. */
-#define PRI_MIN 0			 /* Lowest priority. */
-#define PRI_DEFAULT 31 /* Default priority. */
-#define PRI_MAX 63		 /* Highest priority. */
+#define PRI_MIN 0                       /* Lowest priority. */
+#define PRI_DEFAULT 31                  /* Default priority. */
+#define PRI_MAX 63                      /* Highest priority. */
 
 /* macros for mlfqs
-	n : integer, 
-	x,y : fixed point numbers*/
+  n : integer,
+  x,y : fixed point numbers*/
 #define FC 16384  // 2^14, 고정소수점에서의 소수부를 나타내는 비트 수
 #define convert_n_to_fp(n) ((n) * (FC)) // 정수 n을 고정소수점으로 변환
 #define convert_x_to_int_round_to_zero(x) ((x) / (FC)) // 고정소수점 수 x를 정수로 변환 (반내림)
@@ -101,26 +110,41 @@ typedef int tid_t;
  * only because they are mutually exclusive: only a thread in the
  * ready state is on the run queue, whereas only a thread in the
  * blocked state is on a semaphore wait list. */
-struct thread
-{
+struct thread {
 	/* Owned by thread.c. */
 	tid_t tid;                          /* Thread identifier. */
 	enum thread_status status;          /* Thread state. */
 	char name[16];                      /* Name (for debugging purposes). */
 	int priority;                       /* Priority. */
+	/* TO DO: add local tick(the time to wake up)*/
+	int64_t wakeup_tick;
 	/* Shared between thread.c and synch.c. */
 	struct list_elem elem;              /* List element. */
-	int64_t wakeup_ticks;
+	
+	struct list donations; // 나에게 후원한 스레드들 리스트
+	struct list_elem d_elem; // 내가 후원할 스레드에게 내 정보를 저장하게 함
+	struct lock *wait_on_lock; // 내가 기다리는 락
+	int original_priority; // 내 priority가 후원을 받아서 높아져도 원래 priority를 저장하기 위해
 
-	//donate에 필요한 변수
-	struct list donations; //donation 변수
-	struct list_elem d_elem; // donation list elem 저장
-	struct lock *wait_on_lock; //기다리는 lock이 무엇인지 저장해 줄 변수
-	int org_priority; //원래 priority를 저장해둘 변수
+	int nice;
+	int recent_cpu;
+
+	struct thread *parent; // 부모 프로세스에 대한 포인터 // userprog
+	struct list_elem sibling_elem; // 형제 프로세스에 대한 리스트
+	struct list children; // 자식 프로세스에 대한 리스트
+
+	// exec()을 위한 세마포어 추가하기
+
+	enum load_status load_status; // load status // userprog
+
+	int exit_status;
+
+	struct file *fdt[64]; // file descriptor table 구조체(배열) //?**fdt?
+	int next_fd;
 
 #ifdef USERPROG
 	/* Owned by userprog/process.c. */
-	uint64_t *pml4; /* Page map level 4 */
+	uint64_t *pml4;                     /* Page map level 4 */
 #endif
 #ifdef VM
 	/* Table for whole virtual memory owned by thread. */
@@ -128,52 +152,49 @@ struct thread
 #endif
 
 	/* Owned by thread.c. */
-	struct intr_frame tf; /* Information for switching */
-	unsigned magic;				/* Detects stack overflow. */
-
-	int nice;
-	int recent_cpu;
+	struct intr_frame tf;               /* Information for switching */
+	unsigned magic;                     /* Detects stack overflow. */
 };
 
-// 쓰레드 a와 b의 우선순위 비교, a>b가 참이면 True 반환
-bool cmp_priority(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
-bool sema_cmp_priority(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
 
 /* If false (default), use round-robin scheduler.
-	 If true, use multi-level feedback queue scheduler.
-	 Controlled by kernel command-line option "-o mlfqs". */
+   If true, use multi-level feedback queue scheduler.
+   Controlled by kernel command-line option "-o mlfqs". */
 extern bool thread_mlfqs;
 
-void thread_init(void);
-void thread_start(void);
+void thread_init (void);
+void thread_start (void);
 
-void thread_tick(void);
-void thread_print_stats(void);
-
-void thread_sleep(int64_t ticks);
-void thread_wakeup(int64_t ticks);
+void thread_tick (void);
+void thread_print_stats (void);
 
 typedef void thread_func (void *aux);
 tid_t thread_create (const char *name, int priority, thread_func *, void *);
 
-void thread_block(void);
-void thread_unblock(struct thread *);
+void thread_block (void);
+void thread_unblock (struct thread *);
 
-struct thread *thread_current(void);
-tid_t thread_tid(void);
-const char *thread_name(void);
+struct thread *thread_current (void);
+tid_t thread_tid (void);
+const char *thread_name (void);
 
-void thread_exit(void) NO_RETURN;
-void thread_yield(void);
+void thread_exit (void) NO_RETURN;
+void thread_yield (void);
 
-int thread_get_priority(void);
-void thread_set_priority(int);
+int thread_get_priority (void);
+void thread_set_priority (int);
 
-int thread_get_nice(void);
-void thread_set_nice(int);
-int thread_get_recent_cpu(void);
-int thread_get_load_avg(void);
+int thread_get_nice (void);
+void thread_set_nice (int);
+int thread_get_recent_cpu (void);
+int thread_get_load_avg (void);
 
-void do_iret(struct intr_frame *tf);
+void do_iret (struct intr_frame *tf);
 
+struct list ready_list;
+struct list sleep_list; 
+
+struct thread *idle_thread;
+int READY_THREADS;
+int LOAD_AVG;
 #endif /* threads/thread.h */

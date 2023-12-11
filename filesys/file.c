@@ -4,7 +4,8 @@
 #include "threads/malloc.h"
 
 /* An open file. */
-struct file {
+struct file 
+{
 	struct inode *inode;        /* File's inode. */
 	off_t pos;                  /* Current position. */
 	bool deny_write;            /* Has file_deny_write() been called? */
@@ -13,32 +14,40 @@ struct file {
 /* Opens a file for the given INODE, of which it takes ownership,
  * and returns the new file.  Returns a null pointer if an
  * allocation fails or if INODE is null. */
+/* 주어진 INODE에 대한 파일을 열고, 이 INODE의 소유권을 가집니다.
+ * 새로운 파일을 반환합니다. 할당이 실패하거나 INODE가 NULL이면,
+ * NULL 포인터를 반환합니다.
+ */
 struct file *
-file_open (struct inode *inode) {
-	struct file *file = calloc (1, sizeof *file);
-	if (inode != NULL && file != NULL) {
-		file->inode = inode;
-		file->pos = 0;
-		file->deny_write = false;
-		return file;
+file_open (struct inode *inode) 
+{
+	struct file *file = calloc (1, sizeof *file); // 파일 구조체를 위한 메모리를 할당하고 0으로 초기화합니다.
+	if (inode != NULL && file != NULL) { // inode와 파일 구조체 할당이 성공했는지 확인합니다.
+		file->inode = inode; // 파일 구조체에 inode를 설정합니다.
+		file->pos = 0; // 파일 내 위치를 0으로 설정합니다 (파일의 시작점).
+		file->deny_write = false; // 파일에 대한 쓰기 거부를 비활성화합니다.
+		return file; // 초기화된 파일 구조체를 반환합니다.
 	} else {
-		inode_close (inode);
-		free (file);
-		return NULL;
+		inode_close (inode); // inode가 NULL이 아니면 inode를 닫습니다.
+		free (file); // 파일 구조체에 대한 메모리 할당을 해제합니다.
+		return NULL; // 실패 시 NULL을 반환합니다.
 	}
 }
+
 
 /* Opens and returns a new file for the same inode as FILE.
  * Returns a null pointer if unsuccessful. */
 struct file *
-file_reopen (struct file *file) {
+file_reopen (struct file *file) 
+{
 	return file_open (inode_reopen (file->inode));
 }
 
 /* Duplicate the file object including attributes and returns a new file for the
  * same inode as FILE. Returns a null pointer if unsuccessful. */
 struct file *
-file_duplicate (struct file *file) {
+file_duplicate (struct file *file) 
+{
 	struct file *nfile = file_open (inode_reopen (file->inode));
 	if (nfile) {
 		nfile->pos = file->pos;
@@ -50,7 +59,8 @@ file_duplicate (struct file *file) {
 
 /* Closes FILE. */
 void
-file_close (struct file *file) {
+file_close (struct file *file) 
+{
 	if (file != NULL) {
 		file_allow_write (file);
 		inode_close (file->inode);
@@ -93,10 +103,21 @@ file_read_at (struct file *file, void *buffer, off_t size, off_t file_ofs) {
  * (Normally we'd grow the file in that case, but file growth is
  * not yet implemented.)
  * Advances FILE's position by the number of bytes read. */
+/* BUFFER에서 FILE로 SIZE 바이트를 씁니다.
+ * 파일의 현재 위치에서 시작합니다.
+ * 실제로 쓴 바이트 수를 반환하며,
+ * 파일의 끝에 도달할 경우 SIZE보다 적을 수 있습니다.
+ * (보통은 이 경우 파일을 확장시키겠지만, 파일 확장 기능은
+ * 아직 구현되지 않았습니다.)
+ * 파일의 위치는 읽은 바이트 수만큼 전진합니다. */
 off_t
 file_write (struct file *file, const void *buffer, off_t size) {
+	/* inode_write_at 함수를 호출하여 파일의 현재 위치(file->pos)에서
+	   size 바이트 만큼 buffer의 내용을 씁니다. */
 	off_t bytes_written = inode_write_at (file->inode, buffer, size, file->pos);
+	/* 쓰기 작업에 성공한 바이트 수만큼 파일 위치를 전진시킵니다. */
 	file->pos += bytes_written;
+	/* 실제로 쓴 바이트 수를 반환합니다. */
 	return bytes_written;
 }
 
