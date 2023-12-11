@@ -26,6 +26,7 @@ static void process_cleanup(void);
 static bool load(const char *file_name, struct intr_frame *if_);
 static void initd(void *f_name);
 static void __do_fork(void *);
+char *strtok_r(char *s, const char *delimiters, char **save_ptr);
 
 void
 hex_dump (uintptr_t ofs, const void *buf_, size_t size, bool ascii); // 추가
@@ -63,8 +64,11 @@ tid_t process_create_initd(const char *file_name)
 		return TID_ERROR;
 	strlcpy(fn_copy, file_name, PGSIZE);
 
+	char **ptr;
+	char *parsed_file_name = strtok_r(file_name, " ", ptr); // 추가
+
 	/* Create a new thread to execute FILE_NAME. */
-	tid = thread_create(file_name, PRI_DEFAULT, initd, fn_copy);
+	tid = thread_create(parsed_file_name, PRI_DEFAULT, initd, fn_copy);
 	if (tid == TID_ERROR)
 		palloc_free_page(fn_copy);
 	return tid;
@@ -199,9 +203,9 @@ argument_stack(int argc, const char **argv, struct intr_frame *_if)
 	// 주소값 8byte의 배수로 padding
 	if (_if->rsp % 8)
 	{
-		// _if.rsp -= (_if.rsp % 8); // 8의 배수로 만들고,
-		_if->rsp -= 8 - (_if->rsp % 8);
-		memset(_if->rsp, 0, 8 - (_if->rsp % 8));
+		_if->rsp -= (_if->rsp % 8); // 8의 배수로 만들고,
+		// _if->rsp -= (8 - (_if->rsp % 8));
+		// memset(_if->rsp, 0, 8 - (_if->rsp % 8)); 웨지감자?
 	}
 
 	// sentinel: 8byte 0 추가하기
@@ -218,19 +222,23 @@ argument_stack(int argc, const char **argv, struct intr_frame *_if)
 
 	// argv[] 주소 값 가리키는 포인터의 주소 
 	_if->R.rsi = _if->rsp;
+	// printf("\n_if->R.rsi: %d\n", _if->R.rsi);
 	
 	// 인자 개수(argc) 저장
 	_if->R.rdi = argc;
+	// printf("\n_if->R.rdi: %d\n", _if->R.rdi);
 
 	// fake address
 	_if->rsp -= 8;
-	memset(_if->rsp, 0, 8);
+	memset(_if->rsp, 0, 8); // memcpy->memset으로 변경 후 page fault 해결
+	// hex_dump(_if->rsp, _if->rsp, USER_STACK - _if->rsp, true);
 }
 
 /* Switch the current execution context to the f_name.
  * Returns -1 on fail.
  * "유저 프로그램”을 위한 인자를 세팅*/
-int process_exec(void *f_name)
+int 
+process_exec(void *f_name)
 {
 	char *file_name = f_name;
 	bool success;
@@ -257,6 +265,7 @@ int process_exec(void *f_name)
 	 * 실행 정보를 해당 멤버에 저장하기 때문입니다.
 	 */
 	struct intr_frame _if;
+	// printf("\nprocess_exec, rax: %d\n", _if.R.rax);
 
 	_if.ds = _if.es = _if.ss = SEL_UDSEG;
 	_if.cs = SEL_UCSEG;
@@ -271,8 +280,6 @@ int process_exec(void *f_name)
 	success = load(file_name, &_if);
 
 	argument_stack(argc, argv, &_if); // 인자 스택에 push
-
-	// hex_dump(_if.rsp, _if.rsp, (USER_STACK - _if.rsp), true);
 
 	/* If load failed, quit. */
 	palloc_free_page(file_name);
@@ -322,13 +329,15 @@ int process_wait(tid_t child_tid UNUSED)
 }
 
 /* Exit the process. This function is called by thread_exit (). */
-void process_exit(void)
+void 
+process_exit(void)
 {
 	struct thread *curr = thread_current();
 	/* TODO: Your code goes here.
 	 * TODO: Implement process termination message (see
 	 * TODO: project2/process_termination.html).
 	 * TODO: We recommend you to implement process resource cleanup here. */
+	// printf("%s: exit(%d)\n", curr->name, curr->exit_status);
 
 	process_cleanup();
 }

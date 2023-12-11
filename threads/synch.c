@@ -48,7 +48,7 @@ bool comapare_priority(struct list_elem *element, struct list_elem *before,void 
    thread, if any). */
    
 bool cmp_sema_priority(const struct list_elem *e, const struct list_elem *before, void * aux){
-	//struct thread * c= list_entry(list_begin(&(list_entry(e,struct semaphore_elem,elem)->semaphore.waiters)),struct thread,elem)->name;
+	
 	struct semaphore_elem * a = list_entry(e,struct semaphore_elem,elem);
 	struct semaphore_elem * a_before = list_entry(before,struct semaphore_elem,elem);
 
@@ -58,10 +58,6 @@ bool cmp_sema_priority(const struct list_elem *e, const struct list_elem *before
 	struct thread * c = list_entry(b,struct thread,elem);
 	struct thread * c_before = list_entry(b_before,struct thread,elem);
 
-	// return 
-	// char* a = list_entry(list_begin(&(list_entry(e,struct semaphore_elem,elem)->semaphore.waiters)),struct thread,elem)->name;
-	// char* b = list_entry(list_begin(&(list_entry(before,struct semaphore_elem,elem)->semaphore.waiters)),struct thread,elem)->name;
-	// printf("%s", list_entry(list_begin(&(list_entry(e,struct semaphore_elem,elem)->semaphore.waiters)),struct thread,elem)->name);
 	return c->priority > c_before->priority;
 }
 
@@ -216,6 +212,7 @@ compare_donation_priority (struct list_elem *cur, struct list_elem *before, void
 {
 	return list_entry (cur, struct thread, d_elem)->priority > list_entry (before, struct thread, d_elem)->priority;
 }
+
 void
 lock_acquire (struct lock *lock) {
 	ASSERT (lock != NULL);

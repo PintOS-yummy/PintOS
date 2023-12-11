@@ -232,6 +232,15 @@ intr_register_ext (uint8_t vec_no, intr_handler_func *handler,
 	register_handler (vec_no, 0, INTR_OFF, handler, name);
 }
 
+/* 내부 인터럽트 VEC_NO를 HANDLER에 등록합니다. 디버깅 목적으로 HANDLER는 NAME으로 명명됩니다.
+   인터럽트 핸들러는 인터럽트 상태 LEVEL과 함께 호출됩니다.
+
+   핸들러는 기술자(privilege level) DPL에 해당하는 권한 수준을 가집니다. 이는 프로세서가
+   DPL 또는 더 낮은 번호의 링(ring)에 있을 때 의도적으로 호출될 수 있다는 것을 의미합니다.
+   실제로, DPL==3은 사용자 모드에서 인터럽트를 호출할 수 있도록 허용하고, DPL==0은
+   이러한 호출을 방지합니다. 사용자 모드에서 발생하는 장애나 예외는 DPL==0의 인터럽트도
+   호출되게 만듭니다. 자세한 내용은 [IA32-v3a] 섹션 4.5 "권한 수준(Privilege Levels)"과
+   4.8.1.1 "비일치 코드 세그먼트 접근(Accessing Nonconforming Code Segments)"을 참조하세요. */
 /* Registers internal interrupt VEC_NO to invoke HANDLER, which
    is named NAME for debugging purposes.  The interrupt handler
    will be invoked with interrupt status LEVEL.
@@ -249,8 +258,8 @@ void
 intr_register_int (uint8_t vec_no, int dpl, enum intr_level level,
 		intr_handler_func *handler, const char *name)
 {
-	ASSERT (vec_no < 0x20 || vec_no > 0x2f);
-	register_handler (vec_no, dpl, level, handler, name);
+	ASSERT (vec_no < 0x20 || vec_no > 0x2f);  // vec_no가 0x20 미만이거나 0x2f 초과인지 확인
+	register_handler (vec_no, dpl, level, handler, name);  // 핸들러를 등록
 }
 
 /* Returns true during processing of an external interrupt
@@ -264,10 +273,12 @@ intr_context (void) {
    interrupt handler to yield to a new process just before
    returning from the interrupt.  May not be called at any other
    time. */
+/* 외부 인터럽트 처리 중에, 인터럽트 핸들러가 인터럽트로부터 반환하기 직전에
+   새로운 프로세스로 양보하도록 지시합니다. 이 함수는 다른 시간에 호출될 수 없습니다. */
 void
 intr_yield_on_return (void) {
-	ASSERT (intr_context ());
-	yield_on_return = true;
+	ASSERT (intr_context ());  // 현재 인터럽트 컨텍스트인지 확인
+	yield_on_return = true;  // 인터럽트에서 반환할 때 양보하도록 설정
 }
 
 /* 8259A Programmable Interrupt Controller. */
@@ -329,6 +340,9 @@ pic_end_of_interrupt (int irq) {
    function is called by the assembly language interrupt stubs in
    intr-stubs.S.  FRAME describes the interrupt and the
    interrupted thread's registers. */
+/* 모든 인터럽트, 폴트, 예외에 대한 핸들러입니다. 이 함수는
+   intr-stubs.S에 있는 어셈블리 언어 인터럽트 스텁에 의해 호출됩니다.
+   FRAME은 인터럽트와 인터럽트된 스레드의 레지스터를 기술합니다. */
 void
 intr_handler (struct intr_frame *frame) {
 	bool external;
@@ -338,6 +352,10 @@ intr_handler (struct intr_frame *frame) {
 	   We only handle one at a time (so interrupts must be off)
 	   and they need to be acknowledged on the PIC (see below).
 	   An external interrupt handler cannot sleep. */
+	/* 외부 인터럽트는 특별합니다.
+	   한 번에 하나만 처리하며(따라서 인터럽트는 꺼져 있어야 함)
+	   PIC(프로그래머블 인터럽트 컨트롤러)에서 승인이 필요합니다(아래 참조).
+	   외부 인터럽트 핸들러는 잠들 수 없습니다. */
 	external = frame->vec_no >= 0x20 && frame->vec_no < 0x30;
 	if (external) {
 		ASSERT (intr_get_level () == INTR_OFF);
@@ -348,6 +366,7 @@ intr_handler (struct intr_frame *frame) {
 	}
 
 	/* Invoke the interrupt's handler. */
+	/* 인터럽트 핸들러를 호출합니다. */
 	handler = intr_handlers[frame->vec_no];
 	if (handler != NULL)
 		handler (frame);
@@ -355,14 +374,19 @@ intr_handler (struct intr_frame *frame) {
 		/* There is no handler, but this interrupt can trigger
 		   spuriously due to a hardware fault or hardware race
 		   condition.  Ignore it. */
+		/* 핸들러가 없지만, 이 인터럽트는 하드웨어 결함이나
+		   경쟁 조건으로 인해 잘못 발생할 수 있습니다. 무시합니다. */
 	} else {
 		/* No handler and not spurious.  Invoke the unexpected
 		   interrupt handler. */
+		/* 핸들러도 없고, 잘못된 인터럽트도 아닙니다.
+		   예상치 못한 인터럽트 핸들러를 호출합니다. */
 		intr_dump_frame (frame);
 		PANIC ("Unexpected interrupt");
 	}
 
 	/* Complete the processing of an external interrupt. */
+	/* 외부 인터럽트 처리를 완료합니다. */
 	if (external) {
 		ASSERT (intr_get_level () == INTR_OFF);
 		ASSERT (intr_context ());
