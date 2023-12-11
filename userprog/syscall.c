@@ -25,8 +25,10 @@ void sys_exit(int status);
 int sys_write(int fd, const void *buffer, unsigned size);
 bool sys_create(const char *file, unsigned initial_size);
 struct file *filesys_open(const char *name);
-void open_(const char *name);
+// void open_(const char *name);
 void file_close(struct file *file);
+void sys_seek (int fd, unsigned position);
+unsigned sys_tell (int fd);
 
 /* System call.
  *
@@ -133,12 +135,13 @@ void syscall_handler(struct intr_frame *f)
 		f->R.rax = sys_write(f->R.rdi, f->R.rsi, f->R.rdx);
 		break; // 10번
 	case SYS_SEEK:
-		// seek_(f->R.rdi, f->R.rsi);
+		sys_seek(f->R.rdi, f->R.rsi);
 		break;
 	case SYS_TELL:
-		// tell_(f->R.rdi);
+		sys_tell(f->R.rdi);
 		break;
-	case SYS_CLOSE:  sys_close(f->R.rdi);  break;
+	case SYS_CLOSE:  sys_close(f->R.rdi);  
+		break;
 	default:
 		printf("존재하지 않는 case\n");
 	}
@@ -271,4 +274,33 @@ sys_read(int fd, void *buffer, unsigned size){
 int 
 sys_filesize(int fd){
 	return file_length(get_file_fd(fd));
+}
+
+//pid_t fork (const char *thread_name);
+//int exec (const char *cmd_line);
+//int wait (pid_t pid);
+
+//bool remove (const char *file); //file 이라는 이름을 가진 파일을 삭제
+//void seek (int fd, unsigned position); //open file fd에서 읽거나 쓸 다음 바이트를 position(파일 시작부터 파이트 단위로 표시)으로 변경. 
+//unsigned tell (int fd); //열려진 파일 fd에서 읽히거나 써질 다음 바이트의 위치를 반환. 파일의 시작지점부터 몇바이트인지로 표현됩니다.
+
+bool sys_remove (const char *file){
+
+}
+
+void sys_seek (int fd, unsigned position){
+	// file_seek (struct file *file, off_t new_pos)
+	if(get_file_fd(fd)<=2)
+		return;
+	
+	if(position<0 || position>sys_filesize(get_file_fd(fd)))
+		return;
+
+	file_seek(get_file_fd(fd), position);
+}
+
+unsigned sys_tell (int fd){
+	if(check_page_fault <=2)
+		return;
+	return file_tell(get_file_fd(fd));
 }
