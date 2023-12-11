@@ -209,12 +209,12 @@ open(const char *file){
 		return -1;
 	}
 
-	// for(int i=2; i<(sizeof(curr->fdt)/sizeof(curr->fdt[0]));i++){
-	// 	if(curr->fdt[i] == get_file){
-	// 		curr->fdt[i] = file;
-	// 		return i;
-	// 	}
-	// 	else
-	// 		return -1;
-	// }
+	for(int i=2; i<64;i++){
+		if(!curr->fdt[i]){
+			curr->fdt[i] = file;
+			return i;
+		}
+	}
+	file_close(get_file);
+	return -1;
 }
