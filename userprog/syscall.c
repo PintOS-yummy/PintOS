@@ -26,6 +26,7 @@ int sys_write(int fd, const void *buffer, unsigned size);
 bool sys_create(const char *file, unsigned initial_size);
 struct file *filesys_open(const char *name);
 void open_(const char *name);
+void file_close(struct file *file);
 
 /* System call.
  *
@@ -137,7 +138,7 @@ void syscall_handler(struct intr_frame *f)
 	case SYS_TELL:
 		// tell_(f->R.rdi);
 		break;
-	case SYS_CLOSE:  sys_close_(f->R.rdi);  break;
+	case SYS_CLOSE:  sys_close(f->R.rdi);  break;
 	default:
 		printf("존재하지 않는 case\n");
 	}
@@ -174,27 +175,30 @@ sys_open(const char *name)
 	check_page_fault(name);
 
 	struct thread *curr = thread_current();
-	// printf("\nsys_open, rax: %d\n", curr->tf.R.rax);
 	struct file *get_file = filesys_open(name);
 
 	if (get_file == NULL)
 		return -1;
 
-	// 잘못됨
-	// for (int i = 2; i < (sizeof(curr->fdt) / sizeof(curr->fdt[0])); i++)
-	// {
-	// 	if (get_file == curr->fdt[i])
-	// 	{
-	// 		curr->fdt[i] = get_file;
+	// file_deny_write(get_file); // 추가
 
-	// 		return i;
-	// 	}
-	// 	else
-	// 		return -1;
-	// }
+	for (int i = 2; i < (sizeof(curr->fdt) / sizeof(curr->fdt[0])); i++)
+	{
+		if (!curr->fdt[i])
+		{
+			curr->fdt[i] = get_file;
+
+			return i;
+		}
+	}
+
+	// close 해주기
+	// sys_close(curr->fdt[i]); // 고치기
+	return -1;
 }
 
-static struct file *get_file_fd(int fd)
+static struct file 
+*get_file_fd(int fd)
 {
 	struct thread *curr = thread_current();
 
@@ -205,7 +209,8 @@ static struct file *get_file_fd(int fd)
 }
 
 // fd에 write하고 다음 fd 반환?
-int sys_write(int fd, const void *buffer, unsigned size)
+int 
+sys_write(int fd, const void *buffer, unsigned size)
 {
 	check_page_fault(buffer);
 
@@ -226,7 +231,10 @@ int sys_write(int fd, const void *buffer, unsigned size)
 		if (get_file_fd(fd) == NULL) // 추가
 			return -1;
 		else
+		{
+			// file_allow_write(thread_current()->fdt[fd]); // 추가
 			return file_write(get_file_fd(fd), buffer, size);
+		}
 	}
 
 	// return -1; // fd가 유효하지 않은 값인 경우,
@@ -246,5 +254,11 @@ check_page_fault(void *uadder)
 void 
 sys_close(int fd)
 {
-
+	struct thread *curr = thread_current();
+	
+	for (int i = 2; i < (sizeof(curr->fdt) / sizeof(curr->fdt[0])); i++)
+		if (!curr->fdt[i])
+		{
+			file_close(curr->fdt[i]);
+		}
 }

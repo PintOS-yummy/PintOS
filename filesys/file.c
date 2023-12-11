@@ -134,15 +134,18 @@ file_write_at (struct file *file, const void *buffer, off_t size,
 	return inode_write_at (file->inode, buffer, size, file_ofs);
 }
 
+/* FILE의 기본 inode에 대한 쓰기 작업을 방지합니다.
+ * file_allow_write()가 호출되거나 FILE이 닫힐 때까지 쓰기가 허용되지 않습니다. */
 /* Prevents write operations on FILE's underlying inode
  * until file_allow_write() is called or FILE is closed. */
 void
 file_deny_write (struct file *file) {
-	ASSERT (file != NULL);
-	if (!file->deny_write) {
-		file->deny_write = true;
-		inode_deny_write (file->inode);
-	}
+    ASSERT (file != NULL);  // file이 NULL이 아닌지 확인
+
+    if (!file->deny_write) {  // 현재 파일이 쓰기 거부 상태가 아니라면
+        file->deny_write = true;  // 파일을 쓰기 거부 상태로 설정
+        inode_deny_write (file->inode);  // inode에 대한 쓰기 작업을 거부
+    }
 }
 
 /* Re-enables write operations on FILE's underlying inode.
