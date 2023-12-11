@@ -285,7 +285,8 @@ sys_filesize(int fd){
 //unsigned tell (int fd); //열려진 파일 fd에서 읽히거나 써질 다음 바이트의 위치를 반환. 파일의 시작지점부터 몇바이트인지로 표현됩니다.
 
 bool sys_remove (const char *file){
-
+	check_page_fault(file);
+	return filesys_remove(file);
 }
 
 void sys_seek (int fd, unsigned position){
