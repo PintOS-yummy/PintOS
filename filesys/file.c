@@ -11,13 +11,13 @@ struct file
 	bool deny_write;            /* Has file_deny_write() been called? */
 };
 
-/* Opens a file for the given INODE, of which it takes ownership,
- * and returns the new file.  Returns a null pointer if an
- * allocation fails or if INODE is null. */
 /* 주어진 INODE에 대한 파일을 열고, 이 INODE의 소유권을 가집니다.
  * 새로운 파일을 반환합니다. 할당이 실패하거나 INODE가 NULL이면,
  * NULL 포인터를 반환합니다.
  */
+/* Opens a file for the given INODE, of which it takes ownership,
+ * and returns the new file.  Returns a null pointer if an
+ * allocation fails or if INODE is null. */
 struct file *
 file_open (struct inode *inode) 
 {
