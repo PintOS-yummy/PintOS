@@ -124,7 +124,7 @@ void syscall_handler(struct intr_frame *f)
 		f->R.rax = sys_open(f->R.rdi);
 		break;
 	case SYS_FILESIZE:
-		// filesize_(f->R.rdi);
+		f->R.rax = sys_filesize(f->R.rdi);
 		break;
 	case SYS_READ:
 		f->R.rax = sys_read(f->R.rdi, f->R.rsi, f->R.rdx);
@@ -212,20 +212,16 @@ sys_write(int fd, const void *buffer, unsigned size)
 
 	if (fd == 1)
 	{
-		
 		putbuf(buffer, size);
-
 		return size;
 	}
 	else 
 	{
-		
 		if (get_file_fd(fd) == NULL) // 추가
 			return -1;
 		else
-		{
 			return file_write(get_file_fd(fd), buffer, size);
-		}
+		
 	}
 
 }
@@ -251,7 +247,28 @@ sys_close(int fd){
 	return;
 }
 
-int 
+int
 sys_read(int fd, void *buffer, unsigned size){
+	check_page_fault(buffer);
+	
+	if(!pml4_get_page(thread_current()->pml4,buffer)) { 
+		sys_exit(-1);
+	}
 
+	int file_size;	
+	if( fd == 0){
+		file_size = input_getc();
+		return file_size;
+	}
+	
+	if( fd < 0 || fd > 63) return -1;
+	// lock 잡아주기
+	if( thread_current()->fdt[fd] == NULL) return -1;
+	// printf("\nread : fd = %d\n",fd);
+	return file_read(thread_current()->fdt[fd],buffer,size);
+}
+
+int 
+sys_filesize(int fd){
+	return file_length(get_file_fd(fd));
 }
