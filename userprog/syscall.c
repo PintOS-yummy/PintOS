@@ -18,7 +18,7 @@ void syscall_handler (struct intr_frame *);
 void putbuf (const char *buffer, size_t n); // 추가
 void hex_dump (uintptr_t ofs, const void *buf_, size_t size, bool ascii); // 추가
 bool filesys_create (const char *name, off_t initial_size); // 추가
-
+bool create(const char *file, unsigned initial_size);
 /* System call.
  *
  * Previously system call services was handled by the interrupt handler
@@ -94,15 +94,17 @@ syscall_handler (struct intr_frame *f)
 	 */
 	switch (f->R.rax)
 	{
-	case SYS_HALT:  sys_halt();  break; // 0번
-	case SYS_EXIT:  sys_exit(f->R.rdi);  break; // 1번
-	case SYS_FORK:  /*fork_(f->R.rdi);*/  break; // 2번
-	case SYS_EXEC:  /*exec_(f->R.rdi);*/  break; // 3번
+	case SYS_HALT:  halt();  break; 
+	case SYS_EXIT:  exit(f->R.rdi);  break; 
+	case SYS_FORK:  /*fork_(f->R.rdi);*/  break; 
+	case SYS_EXEC:  /*exec_(f->R.rdi);*/  break; 
 	case SYS_WAIT:
 		// wait_(f->R.rdi);
 		break;
-	case SYS_CREATE:  //f->R.rax = sys_create(f->R.rdi, f->R.rsi);  
-		break; // 5번
+	case SYS_CREATE:  
+		check_page_fault(f->R.rdi);
+		f->R.rax = create(f->R.rdi, f->R.rsi);  
+		break; 
 	case SYS_REMOVE:
 		// remove_(f->R.rdi);
 		break;
@@ -115,7 +117,7 @@ syscall_handler (struct intr_frame *f)
 	case SYS_READ:
 		// read_(f->R.rdi, f->R.rsi, f->R.rdx);
 		break;
-	case SYS_WRITE:  f->R.rax = sys_write(f->R.rdi, f->R.rsi, f->R.rdx);  break; // 10번
+	case SYS_WRITE:  f->R.rax = write(f->R.rdi, f->R.rsi, f->R.rdx);  break; // 10번
 	case SYS_SEEK:
 		// seek_(f->R.rdi, f->R.rsi);
 		break;
@@ -133,14 +135,22 @@ syscall_handler (struct intr_frame *f)
 }
 
 void 
-sys_halt(void)
+check_page_fault(void* uaddr){
+	struct thread *curr = thread_current();
+	if(uaddr == NULL || is_kernel_vaddr(uaddr) || pml4_get_page(curr->pml4, uaddr) == NULL){
+		exit(-1);
+	}
+}
+
+void 
+halt(void)
 {
 	power_off();
 	NOT_REACHED();
 }
 
 void
-sys_exit(int status)
+exit(int status)
 {
 	struct thread *curr = thread_current();
 	curr->exit_status = status;
@@ -148,20 +158,18 @@ sys_exit(int status)
 	thread_exit();
 }
 
-// bool
-// sys_create(const char *file, unsigned initial_size)
-// {
-// 	int is_success = filesys_create(file, initial_size);
+bool 
+create(const char *file, unsigned initial_size){
+	
+	bool v = filesys_create(file, initial_size);
+	
+	return v;
+}
 
-// 	if (is_success)
-// 		return true;
-// 	else
-// 		return false;
-// }
 
 // fd에 write하고 다음 fd 반환?
 int
-sys_write(int fd, const void *buffer, unsigned size)
+write(int fd, const void *buffer, unsigned size)
 {	
 	if (!((fd < 0) || (fd > 64))) // fd가 유효한 값이면,
 		if (fd == 1)

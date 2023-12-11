@@ -325,7 +325,7 @@ int process_wait(tid_t child_tid UNUSED)
 	{
 	}
 // 	while (1) {} // 핀토스에게 자식을 기다리고 있다고 속이기 위해, 무한 루프를 걸어준다.
-// 	return -1;
+	// return -1;
 }
 
 /* Exit the process. This function is called by thread_exit (). */
