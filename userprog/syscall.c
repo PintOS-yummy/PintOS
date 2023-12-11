@@ -19,6 +19,12 @@ void putbuf (const char *buffer, size_t n); // 추가
 void hex_dump (uintptr_t ofs, const void *buf_, size_t size, bool ascii); // 추가
 bool filesys_create (const char *name, off_t initial_size); // 추가
 
+// 추가
+void  sys_halt(void);
+void sys_exit(int status);
+int sys_write(int fd, const void *buffer, unsigned size);
+bool sys_create(const char *file, unsigned initial_size);
+
 /* System call.
  *
  * Previously system call services was handled by the interrupt handler
@@ -101,14 +107,11 @@ syscall_handler (struct intr_frame *f)
 	case SYS_WAIT:
 		// wait_(f->R.rdi);
 		break;
-	case SYS_CREATE:  //f->R.rax = sys_create(f->R.rdi, f->R.rsi);  
-		break; // 5번
+	case SYS_CREATE:  f->R.rax = sys_create(f->R.rdi, f->R.rsi);  break; // 5번
 	case SYS_REMOVE:
 		// remove_(f->R.rdi);
 		break;
-	case SYS_OPEN:
-		// open_(f->R.rdi);
-		break;
+	case SYS_OPEN:  open_(f->R.rdi);  break;
 	case SYS_FILESIZE:
 		// filesize_(f->R.rdi);
 		break;
@@ -148,16 +151,26 @@ sys_exit(int status)
 	thread_exit();
 }
 
-// bool
-// sys_create(const char *file, unsigned initial_size)
-// {
-// 	int is_success = filesys_create(file, initial_size);
+bool
+sys_create(const char *file, unsigned initial_size)
+{
+	
+	// 포인터 검사하는 함수 추가하기
+	check_page_fault(file);
 
-// 	if (is_success)
-// 		return true;
-// 	else
-// 		return false;
-// }
+	return filesys_create(file, initial_size);
+}
+
+// page_fault 확인
+void
+check_page_fault(void * uadder)
+{
+	struct thread *curr = thread_current();						// va가 pa에 매핑이 되어있는지 확인
+	if (uadder == NULL || is_kernel_vaddr(uadder) || pml4_get_page(curr->pml4, uadder) == NULL)
+	{
+		sys_exit(-1);
+	}
+}
 
 // fd에 write하고 다음 fd 반환?
 int
