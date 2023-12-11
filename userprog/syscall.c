@@ -94,22 +94,25 @@ syscall_handler (struct intr_frame *f)
 	 */
 	switch (f->R.rax)
 	{
-	case SYS_HALT:  halt();  break; 
-	case SYS_EXIT:  exit(f->R.rdi);  break; 
+	case SYS_HALT:  
+		halt();  
+		break; 
+	case SYS_EXIT:  
+		exit(f->R.rdi);  
+		break; 
 	case SYS_FORK:  /*fork_(f->R.rdi);*/  break; 
 	case SYS_EXEC:  /*exec_(f->R.rdi);*/  break; 
 	case SYS_WAIT:
 		// wait_(f->R.rdi);
 		break;
 	case SYS_CREATE:  
-		check_page_fault(f->R.rdi);
 		f->R.rax = create(f->R.rdi, f->R.rsi);  
 		break; 
 	case SYS_REMOVE:
 		// remove_(f->R.rdi);
 		break;
 	case SYS_OPEN:
-		// open_(f->R.rdi);
+		f->R.rax = open(f->R.rdi);
 		break;
 	case SYS_FILESIZE:
 		// filesize_(f->R.rdi);
@@ -141,7 +144,13 @@ check_page_fault(void* uaddr){
 		exit(-1);
 	}
 }
-
+static struct file *get_file_fd(int fd){
+	struct thread *curr = thread_current();
+	if(fd<0 || fd>=64){
+		return NULL;
+	}
+	return curr->fdt[fd];
+}
 void 
 halt(void)
 {
@@ -160,36 +169,52 @@ exit(int status)
 
 bool 
 create(const char *file, unsigned initial_size){
-	
+	check_page_fault(file);
 	bool v = filesys_create(file, initial_size);
-	
 	return v;
 }
 
 
-// fd에 write하고 다음 fd 반환?
 int
 write(int fd, const void *buffer, unsigned size)
 {	
-	if (!((fd < 0) || (fd > 64))) // fd가 유효한 값이면,
-		if (fd == 1)
-		{
-			/* 콘솔에 putbuf() 이용해서 write
-			 * putbuf(): 정확히 size_t n 만큼만 출력함 */
-			putbuf(buffer, size);
-			// 리턴이 f->R.rax를 바꿔야함 하지만 함수 내부에 전달이 안됨 ?
-			// 따라서 f를 함수에 전달해주거나, 밖에서 rax를 바꿔야함 ?
-			// return 추가해야함; ?
-			return size;
-		}
-		else // fd가 1이 아니고, 유효한 값이면,
-		{
-			// fdt[fd]에 buffer 값 작성
-			// return 몇 바이트 write 했는지 반환
-			// "Writes size bytes from buffer to the open file fd." <- 구현하기
-			// thread_current()
-			return file_write(thread_current()->fdt[fd], buffer, strlen(buffer)); // 어떤 파일에 작성해야하지? 현재 쓰레드의 fdt?
-		}
+	int result;
 
-	return -1; // fd가 유효하지 않은 값인 경우,
+	check_page_fault(buffer);
+	if (fd == 1)
+	{
+		putbuf(buffer, size);
+		return size;
+	}
+	else 
+	{
+		if(get_file_fd(fd) == NULL){
+			result = -1;
+		}else{
+			result = file_write(get_file_fd(fd), buffer, size);
+		}
+		return result;
+	}
+	
+}
+
+int 
+open(const char *file){
+
+	check_page_fault(file);
+	struct thread *curr = thread_current();
+	struct file *get_file = filesys_open(file);
+
+	if(get_file == NULL){
+		return -1;
+	}
+
+	// for(int i=2; i<(sizeof(curr->fdt)/sizeof(curr->fdt[0]));i++){
+	// 	if(curr->fdt[i] == get_file){
+	// 		curr->fdt[i] = file;
+	// 		return i;
+	// 	}
+	// 	else
+	// 		return -1;
+	// }
 }
