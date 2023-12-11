@@ -74,6 +74,11 @@ file_get_inode (struct file *file) {
 	return file->inode;
 }
 
+/* 파일의 현재 위치에서 시작하여,
+ * FILE로부터 SIZE 바이트를 BUFFER로 읽어옵니다.
+ * 실제로 읽혀진 바이트 수를 반환합니다.
+ * 이 값은 파일 끝에 도달한 경우 SIZE보다 작을 수 있습니다.
+ * 읽은 바이트 수만큼 FILE의 위치를 진행시킵니다. */
 /* Reads SIZE bytes from FILE into BUFFER,
  * starting at the file's current position.
  * Returns the number of bytes actually read,
@@ -81,9 +86,15 @@ file_get_inode (struct file *file) {
  * Advances FILE's position by the number of bytes read. */
 off_t
 file_read (struct file *file, void *buffer, off_t size) {
-	off_t bytes_read = inode_read_at (file->inode, buffer, size, file->pos);
-	file->pos += bytes_read;
-	return bytes_read;
+    /* 파일의 inode에서 지정된 크기만큼 데이터를 읽어 buffer에 저장합니다.
+       file->pos는 현재 파일에서 읽기를 시작할 위치를 지정합니다. */
+    off_t bytes_read = inode_read_at (file->inode, buffer, size, file->pos);
+
+    /* 읽은 바이트 수만큼 파일 포인터의 위치를 증가시킵니다.
+       이는 다음 읽기 작업에서 현재 읽은 위치 다음부터 시작하게 합니다. */
+    file->pos += bytes_read;
+
+    return bytes_read;
 }
 
 /* Reads SIZE bytes from FILE into BUFFER,
