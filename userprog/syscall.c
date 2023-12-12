@@ -9,9 +9,9 @@
 #include "intrinsic.h"
 #include "threads/init.h" // 추가 power_off()
 #include <string.h>				// 추가
-// #include "threads/mmu.h" // 추가
 #include <console.h>			// 추가
 #include "filesys/file.h" // 추가
+#include "threads/palloc.h"
 
 void syscall_entry(void);
 void syscall_handler(struct intr_frame *);
@@ -29,6 +29,7 @@ struct file *filesys_open(const char *name);
 void file_close(struct file *file);
 void sys_seek (int fd, unsigned position);
 unsigned sys_tell (int fd);
+bool sys_remove (const char *file);
 
 /* System call.
  *
@@ -111,8 +112,9 @@ void syscall_handler(struct intr_frame *f)
 		break;			 // 1번
 	case SYS_FORK: /*fork_(f->R.rdi);*/
 		break;			 // 2번
-	case SYS_EXEC: /*exec_(f->R.rdi);*/
-		break;			 // 3번
+	case SYS_EXEC: 
+		f->R.rax = sys_exec(f->R.rdi);
+		break;			 
 	case SYS_WAIT:
 		// wait_(f->R.rdi);
 		break;
@@ -120,7 +122,7 @@ void syscall_handler(struct intr_frame *f)
 		f->R.rax = sys_create(f->R.rdi, f->R.rsi);
 		break; // 5번
 	case SYS_REMOVE:
-		// remove_(f->R.rdi);
+		f->R.rax = sys_remove(f->R.rdi);
 		break;
 	case SYS_OPEN:
 		f->R.rax = sys_open(f->R.rdi);
@@ -159,7 +161,7 @@ void sys_exit(int status)
 {
 	struct thread *curr = thread_current();
 	curr->exit_status = status;
-	printf("%s: exit(%d)\n", curr->name, curr->exit_status); // thread_exit 안에서 프린트하면 안됨!!!
+	printf("%s: exit(%d)\n", curr->name, curr->exit_status); 
 	thread_exit();
 }
 
@@ -276,21 +278,13 @@ sys_filesize(int fd){
 	return file_length(get_file_fd(fd));
 }
 
-//pid_t fork (const char *thread_name);
-//int exec (const char *cmd_line);
-//int wait (pid_t pid);
-
-//bool remove (const char *file); //file 이라는 이름을 가진 파일을 삭제
-//void seek (int fd, unsigned position); //open file fd에서 읽거나 쓸 다음 바이트를 position(파일 시작부터 파이트 단위로 표시)으로 변경. 
-//unsigned tell (int fd); //열려진 파일 fd에서 읽히거나 써질 다음 바이트의 위치를 반환. 파일의 시작지점부터 몇바이트인지로 표현됩니다.
-
-bool sys_remove (const char *file){
+bool sys_remove (const char *file){ //file 이라는 이름을 가진 파일을 삭제
 	check_page_fault(file);
 	return filesys_remove(file);
 }
 
-void sys_seek (int fd, unsigned position){
-	// file_seek (struct file *file, off_t new_pos)
+void sys_seek (int fd, unsigned position){ //open file fd에서 읽거나 쓸 다음 바이트를 position(파일 시작부터 파이트 단위로 표시)으로 변경. 
+	
 	if(get_file_fd(fd)<=2)
 		return;
 	
@@ -300,8 +294,36 @@ void sys_seek (int fd, unsigned position){
 	file_seek(get_file_fd(fd), position);
 }
 
-unsigned sys_tell (int fd){
+unsigned sys_tell (int fd){ //열려진 파일 fd에서 읽히거나 써질 다음 바이트의 위치를 반환. 파일의 시작지점부터 몇바이트인지로 표현됩니다.
 	if(check_page_fault <=2)
 		return;
 	return file_tell(get_file_fd(fd));
+}
+
+//pid_t fork (const char *thread_name); 
+//THREAD_NAME이라는 이름을 가진 현재 프로세스의 복제본인 새 프로세스를 만듬. 자식 프로세스 pid 반환
+//자식 프로세스에서 반환값은 0이어야 함.
+//자식 프로세스를 성공적으로 복제되었는지 확인하고 fork를 반환해야함. 실패하면 TID_ERROR
+//threads/mmu.c의 pml4_for_each를 사용하여 해당되는 페이지 테이블 구조를 포함한 전체 사용자 메모리 공간을 복사하지만,
+//pte_for_each_func의 누락된 부분을 채워줘야 함.
+
+//int exec (const char *cmd_line); 
+// 현재 프로세스가 cmd_line에서 주어진 프로세스로 변경
+// 성공하면 리턴값 없음, 실패하면 exit stats -1을 반환
+// file descriptor는 exec 함수 호출 시 열린 상태로 있다는것을 명심!
+//int wait (pid_t pid);
+
+int sys_exec (const char *cmd_line){
+	check_page_fault(cmd_line);
+	
+	int size = strlen(cmd_line)+1;
+	char *fn_copy = palloc_get_page(PAL_ZERO); 
+	//page와 frame은 malloc, frame->kva에는 palloc_get_page
+	//메모리 풀에서 4kb만큼 물리 메모리 공간을 잡고 물리 메모리 시작주소를 return 해줌.
+	if((fn_copy) == NULL)
+		sys_exit(-1);
+	strlcpy(fn_copy, cmd_line, size);
+
+	if(process_exec(fn_copy) == -1)
+		return -1;
 }
