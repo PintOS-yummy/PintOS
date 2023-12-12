@@ -5,6 +5,7 @@
 #include <list.h>
 #include <stdint.h>
 #include "threads/interrupt.h"
+#include "threads/synch.h"
 #ifdef VM
 #include "vm/vm.h"
 #endif
@@ -129,18 +130,26 @@ struct thread {
 	int nice;
 	int recent_cpu;
 
+	//현재 threa에 file저장할 때 쓰는 file descriptor table
+	struct file *fdt[64]; // file descriptor table 구조체(배열) //fdt[0] > stdin, fdt[1] > stdin,,,fdt[3] > 일반 file
+	int next_fd;
+
+	//fork, exec, wait에서 사용할 변수
 	struct thread *parent; // 부모 프로세스에 대한 포인터 // userprog
 	struct list_elem sibling_elem; // 형제 프로세스에 대한 리스트
-	struct list children; // 자식 프로세스에 대한 리스트
+	struct list child_list; // 자식 프로세스에 대한 리스트
 
+	enum load_status load_status; // 프로세스 로드 성공 여부 확인하는 플래그/ 실패하면 -1
+	
 	// exec()을 위한 세마포어 추가하기
+	struct semaphore exit_sema; //exit 세마포어
+	struct semaphore load_sema; //load 세마포어
 
-	enum load_status load_status; // load status // userprog
+	int exit_check; //프로세스 종료 유무를 확인
+	int exit_status; //exit 할때 -1넘겨주는 값 //프로세스 종료 상태를 확인
+	// int pro_exit_status; //프로세스 종료 상태를 확인
+	
 
-	int exit_status;
-
-	struct file *fdt[64]; // file descriptor table 구조체(배열) //?**fdt?
-	int next_fd;
 
 #ifdef USERPROG
 	/* Owned by userprog/process.c. */

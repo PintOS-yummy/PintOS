@@ -29,8 +29,8 @@ Executing 'syn-write':
 (syn-write) wait for child 1 of 10 returned 4 (expected 0): FAILED
 syn-write: exit(1)
 Execution of 'syn-write' complete.
-Timer: 79 ticks
-Thread: 30 idle ticks, 42 kernel ticks, 7 user ticks
+Timer: 77 ticks
+Thread: 30 idle ticks, 41 kernel ticks, 6 user ticks
 hd0:0: 0 reads, 0 writes
 hd0:1: 132 reads, 512 writes
 hd1:0: 226 reads, 0 writes

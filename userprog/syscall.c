@@ -300,19 +300,6 @@ unsigned sys_tell (int fd){ //열려진 파일 fd에서 읽히거나 써질 다�
 	return file_tell(get_file_fd(fd));
 }
 
-//pid_t fork (const char *thread_name); 
-//THREAD_NAME이라는 이름을 가진 현재 프로세스의 복제본인 새 프로세스를 만듬. 자식 프로세스 pid 반환
-//자식 프로세스에서 반환값은 0이어야 함.
-//자식 프로세스를 성공적으로 복제되었는지 확인하고 fork를 반환해야함. 실패하면 TID_ERROR
-//threads/mmu.c의 pml4_for_each를 사용하여 해당되는 페이지 테이블 구조를 포함한 전체 사용자 메모리 공간을 복사하지만,
-//pte_for_each_func의 누락된 부분을 채워줘야 함.
-
-//int exec (const char *cmd_line); 
-// 현재 프로세스가 cmd_line에서 주어진 프로세스로 변경
-// 성공하면 리턴값 없음, 실패하면 exit stats -1을 반환
-// file descriptor는 exec 함수 호출 시 열린 상태로 있다는것을 명심!
-//int wait (pid_t pid);
-
 int sys_exec (const char *cmd_line){
 	check_page_fault(cmd_line);
 	
@@ -327,3 +314,31 @@ int sys_exec (const char *cmd_line){
 	if(process_exec(fn_copy) == -1)
 		return -1;
 }
+
+//pid_t fork (const char *thread_name); 
+//THREAD_NAME이라는 이름을 가진 현재 프로세스의 복제본인 새 프로세스를 만듬. 자식 프로세스 pid 반환
+//자식 프로세스에서 반환값은 0이어야 함.
+//자식 프로세스를 성공적으로 복제되었는지 확인하고 fork를 반환해야함. 실패하면 TID_ERROR
+//threads/mmu.c의 pml4_for_each를 사용하여 해당되는 페이지 테이블 구조를 포함한 전체 사용자 메모리 공간을 복사하지만,
+//pte_for_each_func의 누락된 부분을 채워줘야 함.
+
+//int wait (pid_t pid);
+//자식 프로세스 (pid) 를 기다려서 자식의 종료 상태(exit status)를 가져옴.
+//만약 pid(자식 프로세스)가 살아있으면, 종료될 때 까지 기다려 종료가 되면 exit함수로 전달해준 상태(exit status) 반환
+//exit를 호출하지 않고 커널에 의해 종료된다면(exception), wait(pid)는 -1 반환
+//커널은 부모 프로세스에게 자식의 종료 상태를 알려주던지, 커널에 의해 종료되었다는 사실을 알려주어야 함.
+
+//수정 필요한거
+//자료구조 struct thread 수정
+//static void init_thread(struct thread *, const char *name, int priority) //프로세스 디스크립터 초기화
+// tid_t thread_create(const char *name, int priority, thread_func *function, void *aux) //function을 수행하는 스레드 생성
+// void thread_exit(void) //현재 실행중인 스레드 종료
+//int process_wait(tid_t child_tid UNUSED) // 자식 프로세스가 종료될 때까지 부모 프로세스 대기
+//void exit(it status) //프로그램을 종료하는 시스템 콜
+//struct thread *get_child_process(int pid)//자식 리스트를 검색하여 프로세스 디스크립터의 주소 리턴
+//void remove_child_process(struct thread *cp) //프로세스 디스크립터를 자식 리스트에서 제거 후 메모리 해제
+
+//추가 필요한거
+//void thread_schedule_tail(struct thread *prev) //프로세스 스케줄링 하는 함수
+//pid_t exec(const *cmd_line) //자식프로세스 생성 및 프로그램 실행
+//int wait(tid_t tid) //자식 프로세스 종료될때 까지 대기(sleep)

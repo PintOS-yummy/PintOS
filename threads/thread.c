@@ -223,6 +223,10 @@ thread_create (const char *name, int priority,
 	t->tf.cs = SEL_KCSEG;
 	t->tf.eflags = FLAG_IF;
 
+	//exit 세마포어 0으로 초기화
+	// sema_init(&t->exit_sema, 0);
+	// sema_init(&t->load_sema, 0);
+
 
 	/* Add to run queue. */
 	thread_unblock (t); // sorted by priority
@@ -490,6 +494,9 @@ init_thread (struct thread *t, const char *name, int priority) {
 	t->magic = THREAD_MAGIC;
 	t->nice = 0;
 	t->recent_cpu = 0;
+
+	//자식 리스트 초기화
+	list_init(&t->child_list);
 }
 
 /* Chooses and returns the next thread to be scheduled.  Should

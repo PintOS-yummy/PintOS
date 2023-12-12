@@ -18,8 +18,8 @@ Executing 'fork-boundary':
 (fork-boundary) wait: FAILED
 fork-boundary: exit(1)
 Execution of 'fork-boundary' complete.
-Timer: 72 ticks
-Thread: 30 idle ticks, 40 kernel ticks, 2 user ticks
+Timer: 70 ticks
+Thread: 30 idle ticks, 38 kernel ticks, 2 user ticks
 hd0:0: 0 reads, 0 writes
 hd0:1: 80 reads, 240 writes
 hd1:0: 106 reads, 0 writes
