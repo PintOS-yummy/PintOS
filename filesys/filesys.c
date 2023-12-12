@@ -89,7 +89,7 @@ filesys_create (const char *name, off_t initial_size) {
  * or if an internal memory allocation fails. */
 struct file *
 filesys_open (const char *name) {
-    /* 루트 디렉토리를 연다. */
+    /* 루트   디렉토리를 연다. */
 	struct dir *dir = dir_open_root ();
 	struct inode *inode = NULL;
 

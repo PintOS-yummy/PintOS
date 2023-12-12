@@ -223,6 +223,13 @@ thread_create (const char *name, int priority,
 	t->tf.cs = SEL_KCSEG;
 	t->tf.eflags = FLAG_IF;
 
+	// 초기화
+	t->load_status = 0;
+	t->is_exit = 0;
+	sema_init(&t->fork_sema, 0);
+	sema_init(&t->wait_sema, 0);
+
+	// child 리스트에 추가 하는 로직 추가?
 
 	/* Add to run queue. */
 	thread_unblock (t); // sorted by priority
@@ -265,6 +272,7 @@ comapare_priority(struct list_elem *element, struct list_elem *before,void * aux
 	
 	return false;
 }
+
 void
 thread_unblock (struct thread *t) {
 	enum intr_level old_level;
@@ -272,11 +280,12 @@ thread_unblock (struct thread *t) {
 	ASSERT (is_thread (t));
 
 	old_level = intr_disable ();
+	
 	ASSERT (t->status == THREAD_BLOCKED);
-	//list_push_back (&ready_list, &t->elem);
-	//list_sort(&ready_list,comapare_priority,NULL);
-	list_insert_ordered(&ready_list,&t->elem,comapare_priority,NULL);
+	
+	list_insert_ordered(&ready_list, &t->elem, comapare_priority, NULL);
 	t->status = THREAD_READY;
+
 	intr_set_level (old_level);
 }
 
@@ -490,6 +499,9 @@ init_thread (struct thread *t, const char *name, int priority) {
 	t->magic = THREAD_MAGIC;
 	t->nice = 0;
 	t->recent_cpu = 0;
+
+	// userprog // 자식 리스트 초기화
+	list_init (&t->child_list); 
 }
 
 /* Chooses and returns the next thread to be scheduled.  Should

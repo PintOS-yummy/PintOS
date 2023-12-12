@@ -7,11 +7,16 @@
 #include "userprog/gdt.h"
 #include "threads/flags.h"
 #include "intrinsic.h"
-#include "threads/init.h" // 추가 power_off()
-#include <string.h>				// 추가
-// #include "threads/mmu.h" // 추가
-#include <console.h>			// 추가
-#include "filesys/file.h" // 추가
+
+// 추가
+#include "threads/init.h"
+#include <string.h>				
+// #include "threads/mmu.h" 
+#include <console.h>			
+#include "filesys/file.h"
+#include "threads/palloc.h"	
+#include "userprog/process.h"
+#include "user/syscall.h" 
 
 void syscall_entry(void);
 void syscall_handler(struct intr_frame *);
@@ -38,6 +43,12 @@ unsigned sys_tell(int fd);
 void sys_seek(int fd, unsigned position);
 bool filesys_remove (const char *name);
 bool sys_remove(const char *file);
+int process_exec(void *f_name);
+tid_t process_fork(const char *name, struct intr_frame *if_ UNUSED);
+pid_t sys_fork(const char *thread_name, struct intr_frame *if_);
+int sys_wait(pid_t pid);
+int process_wait(tid_t child_tid UNUSED);
+void remove_child_process(pid_t);
 
 
 /* System call.
@@ -113,24 +124,20 @@ void syscall_handler(struct intr_frame *f)
 	 */
 	switch (f->R.rax)
 	{
-	case SYS_HALT:  sys_halt();  break; // 0번
-	case SYS_EXIT:  sys_exit(f->R.rdi);  break;			 // 1번
-	case SYS_FORK: /*fork_(f->R.rdi);*/
-		break;			 // 2번
-	case SYS_EXEC: /*exec_(f->R.rdi);*/
-		break;			 // 3번
-	case SYS_WAIT:
-		// wait_(f->R.rdi);
-		break;
-	case SYS_CREATE:  f->R.rax = sys_create(f->R.rdi, f->R.rsi);  break; // 5번
-	case SYS_REMOVE:  f->R.rax = sys_remove(f->R.rdi);  break;
-	case SYS_OPEN:  f->R.rax = sys_open(f->R.rdi);  break;
-	case SYS_FILESIZE:  f->R.rax = sys_filesize(f->R.rdi);  break;
-	case SYS_READ:  f->R.rax = sys_read(f->R.rdi, f->R.rsi, f->R.rdx);  break; // sys_filesize() 구현해야 테스트 통과함
-	case SYS_WRITE:  f->R.rax = sys_write(f->R.rdi, f->R.rsi, f->R.rdx);  break; // 10번
-	case SYS_SEEK: sys_seek(f->R.rdi, f->R.rsi);  break;
-	case SYS_TELL:  f->R.rax = sys_tell(f->R.rdi);  break;
-	case SYS_CLOSE:  sys_close(f->R.rdi);  break;
+	case SYS_HALT:  							 sys_halt();  														 break; // 0번
+	case SYS_EXIT:  							 sys_exit(f->R.rdi);  										 break;			 // 1번
+	case SYS_FORK:  		f->R.rax = sys_fork(f->R.rdi, f);  									 break;			 // 2번
+	case SYS_EXEC:  		f->R.rax = sys_exec(f->R.rdi);  										 break;			 // 3번
+	case SYS_WAIT:  		f->R.rax = sys_wait(f->R.rdi);  									   break;			 // 4번
+	case SYS_CREATE:  	f->R.rax = sys_create(f->R.rdi, f->R.rsi);  				 break; // 5번
+	case SYS_REMOVE:  	f->R.rax = sys_remove(f->R.rdi);  									 break;
+	case SYS_OPEN:  		f->R.rax = sys_open(f->R.rdi);  										 break;
+	case SYS_FILESIZE:  f->R.rax = sys_filesize(f->R.rdi);  								 break;
+	case SYS_READ:  		f->R.rax = sys_read(f->R.rdi, f->R.rsi, f->R.rdx);   break; // sys_filesize() 구현해야 테스트 통과함
+	case SYS_WRITE:  		f->R.rax = sys_write(f->R.rdi, f->R.rsi, f->R.rdx);  break; // 10번
+	case SYS_SEEK: 								 sys_seek(f->R.rdi, f->R.rsi);  					 break;
+	case SYS_TELL:  		f->R.rax = sys_tell(f->R.rdi);  										 break;
+	case SYS_CLOSE:  							 sys_close(f->R.rdi);  										 break;
 	default:
 		printf("존재하지 않는 case\n");
 	}
@@ -152,6 +159,77 @@ sys_exit(int status)
 	curr->exit_status = status;
 	printf("%s: exit(%d)\n", curr->name, curr->exit_status); // thread_exit 안에서 프린트하면 안됨!!!
 	thread_exit();
+}
+
+pid_t
+sys_fork(const char *thread_name, struct intr_frame *if_)
+{
+
+	int pid = process_fork(thread_name, NULL);
+	struct thread *child = get_child_process(pid);
+	sema_down(&child->fork_sema); // child가 load 될 때까지 down하고, load되면 up해줌
+	// return pid가 실행되도록 세마포어를 사용하는 것
+
+	return pid;	
+}
+
+struct thread *
+get_child_process(int pid)
+{
+	struct thread *curr = thread_current();
+	struct list_elem *e;
+	struct thread *child;
+
+	for (e = list_begin(&curr->child_list); e != list_end(&curr->child_list); e = list_next(&curr->child_list))
+	{
+		child = list_entry(e, struct thread, child_elem);
+		if (child->tid == pid)
+			return child;
+	}
+
+	return NULL;
+}
+
+void
+remove_child_process(pid_t pid)
+{
+	struct thread *curr = thread_current();
+	struct list_elem *e;
+	struct thread *child;
+
+	for (e = list_begin(&curr->child_list); e != list_end(&curr->child_list); e = list_next(&curr->child_list))
+	{
+		child = list_entry(e, struct thread, child_elem);
+		if (child->tid == pid)
+			list_remove(e);
+			return;
+	}
+
+	return;
+}
+
+int 
+sys_exec (const char *cmd_line)
+{
+	check_page_fault(cmd_line);
+	
+	int size = strlen(cmd_line) + 1;
+	char *fn_copy = palloc_get_page(PAL_ZERO); 
+	// page와 frame은 malloc, frame->kva에는 palloc_get_page
+	// 메모리 풀에서 4kb만큼 물리 메모리 공간을 잡고 물리 메모리 시작주소를 return 해줌.
+	if ((fn_copy) == NULL)
+		sys_exit(-1);
+		
+	strlcpy(fn_copy, cmd_line, size);
+
+	if (process_exec(fn_copy) == -1)
+		return -1;
+}
+
+int 
+sys_wait(pid_t pid)
+{
+	int process_wait(tid_t child_tid UNUSED);
 }
 
 bool 
@@ -267,10 +345,12 @@ check_page_fault(void *uadder)
 	}
 }
 
-unsigned
-sys_tell(int fd)
+bool 
+sys_remove(const char *file)
 {
-	return file_tell(get_file_fd(fd));
+	check_page_fault(file);
+
+	return filesys_remove (file);
 }
 
 void 
@@ -279,12 +359,10 @@ sys_seek(int fd, unsigned position)
 	return file_seek(get_file_fd(fd), position);
 }
 
-bool 
-sys_remove(const char *file)
+unsigned
+sys_tell(int fd)
 {
-	check_page_fault(file);
-
-	return filesys_remove (file);
+	return file_tell(get_file_fd(fd));
 }
 
 void 

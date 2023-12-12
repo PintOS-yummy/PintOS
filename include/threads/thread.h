@@ -129,15 +129,20 @@ struct thread {
 	int nice;
 	int recent_cpu;
 
-	struct thread *parent; // 부모 프로세스에 대한 포인터 // userprog
-	struct list_elem sibling_elem; // 형제 프로세스에 대한 리스트
-	struct list children; // 자식 프로세스에 대한 리스트
+	// userprog
+	struct thread *parent; // 부모 프로세스에 대한 포인터 
+	struct list_elem child_elem; // 형제 프로세스에 대한 리스트
+	struct list child_list; // 자식 프로세스에 대한 리스트
+	struct intr_frame *parent_if;
 
-	// exec()을 위한 세마포어 추가하기
+	// fork를 위한 세마포어 추가하기
+	struct semaphore *fork_sema;
+	struct semaphore *wait_sema;
+	
+	int exit_status; // 프로세스 종료 상태
+	int is_exit; // 프로세스 종료 여부
 
-	enum load_status load_status; // load status // userprog
-
-	int exit_status;
+	enum load_status load_status; // 프로세스 생성 유무
 
 	struct file *fdt[64]; // file descriptor table 구조체(배열) //?**fdt?
 	int next_fd;

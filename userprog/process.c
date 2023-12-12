@@ -91,11 +91,17 @@ initd(void *f_name)
 
 /* Clones the current process as `name`. Returns the new process's thread id, or
  * TID_ERROR if the thread cannot be created. */
-tid_t process_fork(const char *name, struct intr_frame *if_ UNUSED)
+/* 현재 프로세스를 `name`이라는 이름으로 복제합니다. 새로운 프로세스의 스레드 ID를 반환하거나,
+ * 스레드를 생성할 수 없는 경우 TID_ERROR를 반환합니다. */
+tid_t 
+process_fork(const char *name, struct intr_frame *if_)
 {
-	/* Clone current thread to new thread.*/
-	return thread_create(name,
-											 PRI_DEFAULT, __do_fork, thread_current());
+	// thread_create가 호출되면 부모의 if_가 바뀜! 
+	// 따라서 바뀌기전에 memcpy해서 현재 쓰레드(생성될 쓰레드의 부모)에 저장
+	memcpy(&thread_current()->parent_if, if_, sizeof(struct intr_frame));
+
+  /* 자식 프로세스 생성 */
+  return thread_create(name, PRI_DEFAULT, __do_fork, thread_current());
 }
 
 #ifndef VM
@@ -132,6 +138,9 @@ duplicate_pte(uint64_t *pte, void *va, void *aux)
 }
 #endif
 
+/* 부모의 실행 컨텍스트를 복사하는 스레드 함수입니다.
+ * 힌트) parent->tf는 프로세스의 사용자 영역 컨텍스트를 보유하고 있지 않습니다.
+ *       즉, process_fork의 두 번째 인자를 이 함수로 전달해야 합니다. */
 /* A thread function that copies parent's execution context.
  * Hint) parent->tf does not hold the userland context of the process.
  *       That is, you are required to pass second argument of process_fork to
@@ -142,14 +151,17 @@ __do_fork(void *aux)
 	struct intr_frame if_;
 	struct thread *parent = (struct thread *)aux;
 	struct thread *current = thread_current();
-	/* TODO: somehow pass the parent_if. (i.e. process_fork()'s if_) */
+	/* TODO: somehow pass the parent_if. (i.e. process_fork()'s if_)
+		(즉, process_fork()'s if_를 전달해야 합니다.) */
 	struct intr_frame *parent_if;
 	bool succ = true;
 
 	/* 1. Read the cpu context to local stack. */
+	/* 1. 로컬 스택으로 CPU 컨텍스트를 읽어옵니다. */
 	memcpy(&if_, parent_if, sizeof(struct intr_frame));
 
 	/* 2. Duplicate PT */
+	/* 2. 페이지 테이블을 복제합니다. */
 	current->pml4 = pml4_create();
 	if (current->pml4 == NULL)
 		goto error;
@@ -169,10 +181,15 @@ __do_fork(void *aux)
 	 * TODO:       in include/filesys/file.h. Note that parent should not return
 	 * TODO:       from the fork() until this function successfully duplicates
 	 * TODO:       the resources of parent.*/
+	/* TODO: 여기에 코드를 작성합니다.
+	 * TODO: 힌트) 파일 객체를 복제하기 위해 `include/filesys/file.h`에 있는
+	 * TODO:       `file_duplicate`를 사용하세요. 부모 프로세스는 이 함수가
+	 * TODO:       성공적으로 자원을 복제할 때까지 fork()에서 반환되어서는 안 됩니다.*/
 
 	process_init();
 
 	/* Finally, switch to the newly created process. */
+	/* 마지막으로, 새로 생성된 프로세스로 전환합니다. */
 	if (succ)
 		do_iret(&if_);
 error:
@@ -236,7 +253,7 @@ argument_stack(int argc, const char **argv, struct intr_frame *_if)
 
 /* Switch the current execution context to the f_name.
  * Returns -1 on fail.
- * "유저 프로그램”을 위한 인자를 세팅*/
+ * 유저 프로그램을 위한 인자를 세팅 */
 int 
 process_exec(void *f_name)
 {
