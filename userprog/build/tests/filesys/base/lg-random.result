@@ -1,13 +1,13 @@
 FAIL
 Kernel panic in run: PANIC at ../../filesys/file.c:163 in file_length(): assertion `file != NULL' failed.
-Call stack: 0x8004218649 0x800421f0c0 0x800421d8ab 0x800421d930 0x800421d3f1 0x800421d13c 0x4002a2 0x401148 0x401191
+Call stack: 0x80042186e9 0x800421f6bd 0x800421dc98 0x800421dd1d 0x800421d7b0 0x800421d4a7 0x4002a2 0x401148 0x401191
 Translation of call stack:
-0x0000008004218649: debug_panic (lib/kernel/debug.c:32)
-0x000000800421f0c0: file_length (filesys/file.c:164)
-0x000000800421d8ab: sys_filesize (userprog/syscall.c:279)
-0x000000800421d930: sys_seek (userprog/syscall.c:291)
-0x000000800421d3f1: syscall_handler (userprog/syscall.c:141)
-0x000000800421d13c: no_sti (userprog/syscall-entry.o:?)
+0x00000080042186e9: debug_panic (lib/kernel/debug.c:32)
+0x000000800421f6bd: file_length (filesys/file.c:164)
+0x000000800421dc98: sys_filesize (userprog/syscall.c:284)
+0x000000800421dd1d: sys_seek (userprog/syscall.c:296)
+0x000000800421d7b0: syscall_handler (userprog/syscall.c:143)
+0x000000800421d4a7: no_sti (userprog/syscall-entry.o:?)
 0x00000000004002a2: (unknown)
 0x0000000000401148: (unknown)
 0x0000000000401191: (unknown)

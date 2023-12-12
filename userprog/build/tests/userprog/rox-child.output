@@ -4,7 +4,7 @@ Kernel command line: -q -f put rox-child put child-rox run rox-child
 Pintos booting with: 
 	base_mem: 0x0 ~ 0x9fc00 (Usable: 639 kB)
 	ext_mem: 0x100000 ~ 0x13e0000 (Usable: 19,328 kB)
-Calibrating timer...  157,081,600 loops/s.
+Calibrating timer...  117,760,000 loops/s.
 hd0:0: detected 321 sector (160 kB) disk, model "QEMU HARDDISK", serial "QM00001"
 hd0:1: detected 20,160 sector (9 MB) disk, model "QEMU HARDDISK", serial "QM00002"
 hd1:0: detected 220 sector (110 kB) disk, model "QEMU HARDDISK", serial "QM00003"
@@ -17,12 +17,12 @@ Executing 'rox-child':
 (rox-child) open "child-rox"
 (rox-child) read "child-rox"
 Kernel PANIC at ../../filesys/file.c:163 in file_length(): assertion `file != NULL' failed.
-Call stack: 0x8004218649 0x800421f0c0 0x800421d8ab 0x800421d930 0x800421d3f1 0x800421d13c 0x4001c1 0x4003c5 0x400e66.
+Call stack: 0x80042186e9 0x800421f6bd 0x800421dc98 0x800421dd1d 0x800421d7b0 0x800421d4a7 0x4001c1 0x4003c5 0x400e66.
 The `backtrace' program can make call stacks useful.
 Read "Backtraces" in the "Debugging Tools" chapter
 of the Pintos documentation for more information.
-Timer: 67 ticks
-Thread: 30 idle ticks, 35 kernel ticks, 2 user ticks
+Timer: 69 ticks
+Thread: 30 idle ticks, 36 kernel ticks, 3 user ticks
 hd0:0: 0 reads, 0 writes
 hd0:1: 113 reads, 478 writes
 hd1:0: 220 reads, 0 writes

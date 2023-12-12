@@ -1,2 +1,12 @@
 FAIL
-run: wait for child 1 of 10 returned 4 (expected 0): FAILED
+Kernel panic in run: PANIC at ../../filesys/file.c:163 in file_length(): assertion `file != NULL' failed.
+Call stack: 0x80042186e9 0x800421f6bd 0x800421dc98 0x800421dd1d 0x800421d7b0 0x800421d4a7 0x400217 0x400f82
+Translation of call stack:
+0x00000080042186e9: debug_panic (lib/kernel/debug.c:32)
+0x000000800421f6bd: file_length (filesys/file.c:164)
+0x000000800421dc98: sys_filesize (userprog/syscall.c:284)
+0x000000800421dd1d: sys_seek (userprog/syscall.c:296)
+0x000000800421d7b0: syscall_handler (userprog/syscall.c:143)
+0x000000800421d4a7: no_sti (userprog/syscall-entry.o:?)
+0x0000000000400217: (unknown)
+0x0000000000400f82: (unknown)

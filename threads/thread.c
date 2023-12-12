@@ -212,6 +212,11 @@ thread_create (const char *name, int priority,
 	init_thread (t, name, priority);
 	tid = t->tid = allocate_tid ();
 
+	if(t->name !='idle'){
+		struct thread* curr = thread_current();
+		t->parent = curr; //새로 생성한 thread t의 parent 포인터에 현재 thread 포인터 넣어주기
+		list_push_back(&curr->child_list, &t->child_elem);
+	}
 	/* Call the kernel_thread if it scheduled.
 	 * Note) rdi is 1st argument, and rsi is 2nd argument. */
 	t->tf.rip = (uintptr_t) kernel_thread;
@@ -495,8 +500,13 @@ init_thread (struct thread *t, const char *name, int priority) {
 	t->nice = 0;
 	t->recent_cpu = 0;
 
-	//자식 리스트 초기화
+	//fork 추가해준 변수 초기화
 	list_init(&t->child_list);
+	// t->child_exit_status = 0;
+	// t->is_exit = 0;
+	sema_init(&t->wait_sema, 0);
+	sema_init(&t->fork_sema, 0);
+	t->waiting_child = 0;
 }
 
 /* Chooses and returns the next thread to be scheduled.  Should

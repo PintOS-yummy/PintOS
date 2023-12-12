@@ -3,7 +3,6 @@
 #include "threads/synch.h"
 
 void syscall_init (void);
-
 // global lock 정의
 struct lock filesys_lock;
 

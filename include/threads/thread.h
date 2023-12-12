@@ -136,19 +136,21 @@ struct thread {
 
 	//fork, exec, wait에서 사용할 변수
 	struct thread *parent; // 부모 프로세스에 대한 포인터 // userprog
-	struct list_elem sibling_elem; // 형제 프로세스에 대한 리스트
+	struct list_elem child_elem; // 자식 element
 	struct list child_list; // 자식 프로세스에 대한 리스트
 
 	enum load_status load_status; // 프로세스 로드 성공 여부 확인하는 플래그/ 실패하면 -1
 	
 	// exec()을 위한 세마포어 추가하기
-	struct semaphore exit_sema; //exit 세마포어
-	struct semaphore load_sema; //load 세마포어
+	struct semaphore fork_sema; // fork 세마포어
+	struct semaphore wait_sema; // wait 세마포어
 
-	int exit_check; //프로세스 종료 유무를 확인
+	int is_exit; //프로세스 종료 유무를 확인
 	int exit_status; //exit 할때 -1넘겨주는 값 //프로세스 종료 상태를 확인
 	// int pro_exit_status; //프로세스 종료 상태를 확인
-	
+	struct intr_frame parent_if;
+	int waiting_child;
+	int child_exit_status;
 
 
 #ifdef USERPROG

@@ -1,4 +1,5 @@
 #include "userprog/syscall.h"
+#include "user/syscall.h"
 #include <stdio.h>
 #include <syscall-nr.h>
 #include "threads/interrupt.h"
@@ -30,7 +31,7 @@ void file_close(struct file *file);
 void sys_seek (int fd, unsigned position);
 unsigned sys_tell (int fd);
 bool sys_remove (const char *file);
-
+struct thread *get_child_process(pid_t pid);
 /* System call.
  *
  * Previously system call services was handled by the interrupt handler
@@ -110,13 +111,14 @@ void syscall_handler(struct intr_frame *f)
 	case SYS_EXIT:
 		sys_exit(f->R.rdi);
 		break;			 // 1번
-	case SYS_FORK: /*fork_(f->R.rdi);*/
+	case SYS_FORK: 
+		sys_fork(f->R.rdi, f);
 		break;			 // 2번
 	case SYS_EXEC: 
 		f->R.rax = sys_exec(f->R.rdi);
 		break;			 
 	case SYS_WAIT:
-		// wait_(f->R.rdi);
+		f->R.rax = sys_wait(f->R.rdi);
 		break;
 	case SYS_CREATE:
 		f->R.rax = sys_create(f->R.rdi, f->R.rsi);
@@ -162,6 +164,9 @@ void sys_exit(int status)
 	struct thread *curr = thread_current();
 	curr->exit_status = status;
 	printf("%s: exit(%d)\n", curr->name, curr->exit_status); 
+	for(int i=0; i<64; i++){
+		thread_current()->fdt[i] = NULL;
+	}
 	thread_exit();
 }
 
@@ -185,7 +190,7 @@ sys_open(const char *name)
 		return -1;
 
 
-	for (int i = 2; i < (sizeof(curr->fdt) / sizeof(curr->fdt[0])); i++)
+	for (int i = 3; i <64; i++)
 	{
 		if (!curr->fdt[i])
 		{
@@ -223,7 +228,7 @@ sys_write(int fd, const void *buffer, unsigned size)
 	else 
 	{
 		if (get_file_fd(fd) == NULL) // 추가
-			return -1;
+			return 0;
 		else
 			return file_write(get_file_fd(fd), buffer, size);
 		
@@ -261,7 +266,7 @@ sys_read(int fd, void *buffer, unsigned size){
 	}
 
 	int file_size;	
-	if( fd == 0){
+	if(fd == 0){
 		file_size = input_getc();
 		return file_size;
 	}
@@ -307,12 +312,17 @@ int sys_exec (const char *cmd_line){
 	char *fn_copy = palloc_get_page(PAL_ZERO); 
 	//page와 frame은 malloc, frame->kva에는 palloc_get_page
 	//메모리 풀에서 4kb만큼 물리 메모리 공간을 잡고 물리 메모리 시작주소를 return 해줌.
-	if((fn_copy) == NULL)
-		sys_exit(-1);
-	strlcpy(fn_copy, cmd_line, size);
+	if(fn_copy == NULL){
+		palloc_free_page(fn_copy);
+		// sys_exit(-1);
+		return -1;
+	}
+		
+	memcpy(fn_copy, cmd_line, size);
 
 	if(process_exec(fn_copy) == -1)
-		return -1;
+		sys_exit(-1);
+		// return -1;
 }
 
 //pid_t fork (const char *thread_name); 
@@ -342,3 +352,53 @@ int sys_exec (const char *cmd_line){
 //void thread_schedule_tail(struct thread *prev) //프로세스 스케줄링 하는 함수
 //pid_t exec(const *cmd_line) //자식프로세스 생성 및 프로그램 실행
 //int wait(tid_t tid) //자식 프로세스 종료될때 까지 대기(sleep)
+
+pid_t 
+sys_fork(const char *thread_name, struct intr_frame *f){
+	int pid = process_fork(thread_name, f);
+	struct thread *child = get_child_process(pid);
+	sema_down(&child->fork_sema); //fork하고 child가 load될때 까지 기다렸다가 load가 끝나면 sema_up을 해주고 
+	//이 다음 return pid가 실행되도록 세마포어를 사용하는 것! load되기 전에 return pid 가 되면 안됨~~~
+
+	return pid;
+}
+
+struct thread 
+*get_child_process(pid_t pid){
+	struct thread *curr = thread_current();
+	struct list_elem *e;
+	struct thread *get_thread;
+
+	for(e = list_begin(&curr->child_list); e != list_end(&curr->child_list); e = list_next(e)){
+		get_thread = list_entry(e, struct thread, child_elem);
+		if(pid == get_thread->tid)
+			return get_thread;
+	}
+	return NULL;
+}
+
+void 
+remove_child_process(pid_t pid){
+	struct thread *curr = thread_current();
+	struct list_elem *e;
+	struct thread *get_thread;
+
+	for(e = list_begin(&curr->child_list); e != list_end(&curr->child_list); e = list_next(e)){
+		get_thread = list_entry(e, struct thread, child_elem);
+		if(pid == get_thread->tid){
+			list_remove(e);
+			return;
+		}
+	}
+	return;
+}
+
+int
+sys_wait(pid_t pid){
+	// 자식 끝날때까지 기다리는 함수
+	if(thread_current()->waiting_child == pid) 
+		return -1;
+
+	thread_current()->waiting_child = pid;
+	return process_wait(pid);
+}

@@ -1,35 +1,22 @@
 FAIL
-Test output failed to match any acceptable form.
-
-Acceptable output:
-  (wait-killed) begin
-  (child-bad) begin
-  child-bad: exit(-1)
-  (wait-killed) wait(exec()) = -1
-  (wait-killed) end
-  wait-killed: exit(0)
-Differences in `diff -u' format:
-  (wait-killed) begin
-- (child-bad) begin
-- child-bad: exit(-1)
-- (wait-killed) wait(exec()) = -1
-+ (wait-killed) wait(exec()) = 4
-  (wait-killed) end
-  wait-killed: exit(0)
-Acceptable output:
-  (wait-killed) begin
-  (child-bad) begin
-  load: pintos: open failed
-  child-bad: exit(-1)
-  (wait-killed) wait(exec()) = -1
-  (wait-killed) end
-  wait-killed: exit(0)
-Differences in `diff -u' format:
-  (wait-killed) begin
-- (child-bad) begin
-- load: pintos: open failed
-- child-bad: exit(-1)
-- (wait-killed) wait(exec()) = -1
-+ (wait-killed) wait(exec()) = 4
-  (wait-killed) end
-  wait-killed: exit(0)
+Kernel panic in run: PANIC at ../../threads/thread.c:310 in thread_current(): assertion `is_thread (t)' failed.
+Call stack: 0x80042186e9 0x8004207145 0x800420a903 0x800421b9ee 0x800421bbbb 0x800421bb9f 0x8004216be8 0x8004216320 0x800421ba4e 0x8004215bec 0x800421d41f 0x8004208f00 0x800420931e 0x800421c1f6 0x800421c475 0x800421de3b 0x800421d626 0x800421d4a7
+Translation of call stack:
+0x00000080042186e9: debug_panic (lib/kernel/debug.c:32)
+0x0000008004207145: thread_current (threads/thread.c:311)
+0x000000800420a903: lock_held_by_current_thread (threads/synch.c:321)
+0x000000800421b9ee: console_locked_by_current_thread (lib/kernel/console.c:111 (discriminator 2))
+0x000000800421bbbb: putchar_have_lock (lib/kernel/console.c:173)
+0x000000800421bb9f: vprintf_helper (lib/kernel/console.c:166)
+0x0000008004216be8: format_string (lib/stdio.c:529 (discriminator 3))
+0x0000008004216320: __vprintf (lib/stdio.c:284)
+0x000000800421ba4e: vprintf (lib/kernel/console.c:123)
+0x0000008004215bec: printf (lib/stdio.c:80)
+0x000000800421d41f: page_fault (userprog/exception.c:205 (discriminator 12))
+0x0000008004208f00: intr_handler (threads/interrupt.c:372)
+0x000000800420931e: intr_entry (threads/intr-stubs.o:?)
+0x000000800421c1f6: argument_stack (userprog/process.c:226 (discriminator 3))
+0x000000800421c475: process_exec (userprog/process.c:318)
+0x000000800421de3b: sys_exec (userprog/syscall.c:323)
+0x000000800421d626: syscall_handler (userprog/syscall.c:118)
+0x000000800421d4a7: no_sti (userprog/syscall-entry.o:?)
