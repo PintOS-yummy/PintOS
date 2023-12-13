@@ -247,8 +247,10 @@ check_page_fault(void *uadder)
 void
 sys_close(int fd){
 
-	if (fd < 0 || fd > 63) return;
-	if (thread_current()->fdt[fd] == NULL) return;
+	if (fd < 0 || fd > 63) 
+		return;
+	if (thread_current()->fdt[fd] == NULL) 
+		return;
 	
 	file_close(thread_current()->fdt[fd]);
 	thread_current()->fdt[fd] = NULL;
