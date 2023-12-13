@@ -66,10 +66,12 @@ bool
 filesys_create (const char *name, off_t initial_size) {
 	disk_sector_t inode_sector = 0; // inode를 위한 디스크 섹터 번호 초기화.
 	struct dir *dir = dir_open_root (); // 루트 디렉토리를 연다.
+
 	bool success = (dir != NULL
 			&& free_map_allocate (1, &inode_sector) // 빈 디스크 섹터를 할당한다.
 			&& inode_create (inode_sector, initial_size) // inode를 생성한다.
 			&& dir_add (dir, name, inode_sector)); // 디렉토리에 파일을 추가한다.
+			
 	if (!success && inode_sector != 0) // 파일 생성이 실패하고, 할당된 섹터가 있다면
 		free_map_release (inode_sector, 1); // 할당된 섹터를 해제한다.
 	dir_close (dir); // 루트 디렉토리를 닫는다.

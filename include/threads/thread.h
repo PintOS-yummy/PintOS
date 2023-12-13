@@ -133,7 +133,8 @@ struct thread {
 	struct thread *parent; // 부모 프로세스에 대한 포인터 
 	struct list_elem child_elem; // 형제 프로세스에 대한 리스트
 	struct list child_list; // 자식 프로세스에 대한 리스트
-	struct intr_frame *parent_if;
+	int waiting_child; // 기다리는 자식
+	struct intr_frame *parent_if; // 부모의 if_
 
 	// fork를 위한 세마포어 추가하기
 	struct semaphore *fork_sema;
@@ -141,6 +142,7 @@ struct thread {
 	
 	int exit_status; // 프로세스 종료 상태
 	int is_exit; // 프로세스 종료 여부
+	int child_exit_status; // 자식 프로세스 종료 상태 // ?
 
 	enum load_status load_status; // 프로세스 생성 유무
 
@@ -155,7 +157,6 @@ struct thread {
 	/* Table for whole virtual memory owned by thread. */
 	struct supplemental_page_table spt;
 #endif
-
 	/* Owned by thread.c. */
 	struct intr_frame tf;               /* Information for switching */
 	unsigned magic;                     /* Detects stack overflow. */

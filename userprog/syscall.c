@@ -49,6 +49,7 @@ pid_t sys_fork(const char *thread_name, struct intr_frame *if_);
 int sys_wait(pid_t pid);
 int process_wait(tid_t child_tid UNUSED);
 void remove_child_process(pid_t);
+struct thread *get_child_process(int pid);
 
 
 /* System call.
@@ -102,15 +103,16 @@ void syscall_init(void)
 	 */
 	write_msr(MSR_SYSCALL_MASK,
 						FLAG_IF | FLAG_TF | FLAG_DF | FLAG_IOPL | FLAG_AC | FLAG_NT);
+
+	// 락 초기화
+	// 글로벌 락 사용해서 file간 경쟁 조건 피하기->filesystem과 연관된 코드에서 글로벌 락 사용하기
+	lock_init(&filesys_lock);
 }
 
 /* The main system call interface */
 void syscall_handler(struct intr_frame *f)
 {
-	// 락 초기화
-	// 글로벌 락 사용해서 file간 경쟁 조건 피하기->filesystem과 연관된 코드에서 글로벌 락 사용하기
-	lock_init(&filesys_lock);
-
+	
 	// printf ("\nsystem call!\n");
 	// printf("\nf->R.rax: %d\n", f->R.rax);
 
@@ -125,10 +127,10 @@ void syscall_handler(struct intr_frame *f)
 	switch (f->R.rax)
 	{
 	case SYS_HALT:  							 sys_halt();  														 break; // 0번
-	case SYS_EXIT:  							 sys_exit(f->R.rdi);  										 break;			 // 1번
-	case SYS_FORK:  		f->R.rax = sys_fork(f->R.rdi, f);  									 break;			 // 2번
-	case SYS_EXEC:  		f->R.rax = sys_exec(f->R.rdi);  										 break;			 // 3번
-	case SYS_WAIT:  		f->R.rax = sys_wait(f->R.rdi);  									   break;			 // 4번
+	case SYS_EXIT:  							 sys_exit(f->R.rdi);  										 break;	// 1번
+	case SYS_FORK:  		f->R.rax = sys_fork(f->R.rdi, f);  									 break;	// 2번
+	case SYS_EXEC:  		f->R.rax = sys_exec(f->R.rdi);  										 break;	// 3번
+	case SYS_WAIT:  		f->R.rax = sys_wait(f->R.rdi);  									   break;	// 4번
 	case SYS_CREATE:  	f->R.rax = sys_create(f->R.rdi, f->R.rsi);  				 break; // 5번
 	case SYS_REMOVE:  	f->R.rax = sys_remove(f->R.rdi);  									 break;
 	case SYS_OPEN:  		f->R.rax = sys_open(f->R.rdi);  										 break;
@@ -164,30 +166,42 @@ sys_exit(int status)
 pid_t
 sys_fork(const char *thread_name, struct intr_frame *if_)
 {
-
-	int pid = process_fork(thread_name, NULL);
+	// printf("\n1\n");
+	int pid = process_fork(thread_name, if_);
+	
 	struct thread *child = get_child_process(pid);
-	sema_down(&child->fork_sema); // child가 load 될 때까지 down하고, load되면 up해줌
-	// return pid가 실행되도록 세마포어를 사용하는 것
+	if (child == NULL) // child 프로세스를 찾지 못하면,
+		return TID_ERROR;
 
-	return pid;	
+	sema_down(&child->fork_sema); // child가 load 될 때까지 down하고, load되면 up해줌
+	
+	if (child->exit_status == -1)
+		return -1;
+
+	// printf("\n2\n");
+	
+	return pid; // return pid가 실행되도록 세마포어를 사용하는 것
 }
 
+// pid인 자식 프로세스의 thread 구조체 반환
 struct thread *
 get_child_process(int pid)
 {
+	// printf("\n3\n");
 	struct thread *curr = thread_current();
 	struct list_elem *e;
 	struct thread *child;
 
-	for (e = list_begin(&curr->child_list); e != list_end(&curr->child_list); e = list_next(&curr->child_list))
+	for (e = list_begin(&curr->child_list); e != list_end(&curr->child_list); e = list_next(e))
 	{
 		child = list_entry(e, struct thread, child_elem);
+		// printf("\nchild->tid: %d\n", child->tid);
 		if (child->tid == pid)
+			// printf("\n4\n");		
 			return child;
 	}
 
-	return NULL;
+	return NULL; // 자식 프로세스 존재하지 않음
 }
 
 void
@@ -197,7 +211,7 @@ remove_child_process(pid_t pid)
 	struct list_elem *e;
 	struct thread *child;
 
-	for (e = list_begin(&curr->child_list); e != list_end(&curr->child_list); e = list_next(&curr->child_list))
+	for (e = list_begin(&curr->child_list); e != list_end(&curr->child_list); e = list_next(e))
 	{
 		child = list_entry(e, struct thread, child_elem);
 		if (child->tid == pid)
@@ -212,24 +226,35 @@ int
 sys_exec (const char *cmd_line)
 {
 	check_page_fault(cmd_line);
-	
 	int size = strlen(cmd_line) + 1;
-	char *fn_copy = palloc_get_page(PAL_ZERO); 
+	if (cmd_line[0] == '\n') // 추가
+		sys_exit(-1);
+	
 	// page와 frame은 malloc, frame->kva에는 palloc_get_page
 	// 메모리 풀에서 4kb만큼 물리 메모리 공간을 잡고 물리 메모리 시작주소를 return 해줌.
+	char *fn_copy = palloc_get_page(PAL_ZERO); 
+	
 	if ((fn_copy) == NULL)
 		sys_exit(-1);
 		
-	strlcpy(fn_copy, cmd_line, size);
+	// strlcpy(fn_copy, cmd_line, size);
+	memcpy(fn_copy, cmd_line, size);
 
 	if (process_exec(fn_copy) == -1)
-		return -1;
+		sys_exit(-1);
 }
 
 int 
 sys_wait(pid_t pid)
 {
-	int process_wait(tid_t child_tid UNUSED);
+	struct thread *curr = thread_current();
+	
+	if (curr->waiting_child == pid) // 이미 기다리는 자식이 또 wait 호출하면 안됨
+		return -1;
+
+	curr->waiting_child = pid; // 부모 프로세스가 기다리는 자식 프로세스 pid 값 저장
+
+	return process_wait(pid);
 }
 
 bool 
@@ -247,24 +272,25 @@ sys_open(const char *name)
 	check_page_fault(name);
 
 	struct thread *curr = thread_current();
-	struct file *get_file = filesys_open(name);
+	// struct file *get_file = filesys_open(name);
 
-	if (get_file == NULL)
-		return -1;
-
-	// file_deny_write(get_file); // 추가
-
-	for (int i = 2; i < (sizeof(curr->fdt) / sizeof(curr->fdt[0])); i++)
+	// for (int i = 3; i < (sizeof(curr->fdt) / sizeof(curr->fdt[0])); i++)
+	for (int i = 3; i < 64; i++)
 	{
-		if (!curr->fdt[i])
+		if (curr->fdt[i] == NULL
+		)
 		{
-			curr->fdt[i] = get_file;
-			return i;
+			struct file *get_file = filesys_open(name); // 추가
+			if (!get_file)
+				return -1;
+			else
+			{
+				curr->fdt[i] = get_file;
+				return i;
+			}
 		}
 	}
 
-	// close 해주기
-	// sys_close(curr->fdt[i]); // 고치기
 	return -1;
 }
 
@@ -319,18 +345,15 @@ sys_write(int fd, const void *buffer, unsigned size)
 		putbuf(buffer, size);
 		return size;
 	}
-	else // fd가 1이 아니고, 유효한 값이면,
-	{
-		// fdt[fd]에 buffer 값 작성
-		// "Writes size bytes from buffer to the open file fd." <- 구현하기
-		if (get_file_fd(fd) == NULL) // 추가
-			return -1;
-		else
-		{
-			// file_allow_write(thread_current()->fdt[fd]); // 추가
-			return file_write(get_file_fd(fd), buffer, size); // return 몇 바이트 write 했는지 반환
-		}
-	}
+	// fd가 1이 아니고, 유효한 값이면,
+	// fdt[fd]에 buffer 값 작성
+	// "Writes size bytes from buffer to the open file fd." <- 구현하기
+	if (get_file_fd(fd) == NULL) // 추가
+		return 0;
+	
+	// file_allow_write(thread_current()->fdt[fd]); // 추가
+	return file_write(get_file_fd(fd), buffer, size); // return 몇 바이트 write 했는지 반환
+
 	// return -1; // fd가 유효하지 않은 값인 경우,
 }
 
@@ -368,11 +391,21 @@ sys_tell(int fd)
 void 
 sys_close(int fd)
 {
-	struct thread *curr = thread_current();
+	// struct thread *curr = thread_current();
+	// // fdt의 존재하는 모든 fd를 닫음
+	// for (int i = 3; i < (sizeof(curr->fdt) / sizeof(curr->fdt[0])); i++)
+	// 	if (!curr->fdt[i])
+	// 	{
+	// 		file_close(curr->fdt[i]);
+	// 	}
+	
+	struct file *get_file = get_file_fd(fd);
 
-	for (int i = 2; i < (sizeof(curr->fdt) / sizeof(curr->fdt[0])); i++)
-		if (!curr->fdt[i])
-		{
-			file_close(curr->fdt[i]);
-		}
+	if (get_file == NULL)
+		return;
+	
+	file_close(get_file);
+	thread_current()->fdt[fd] = NULL;
+
+	return;
 }

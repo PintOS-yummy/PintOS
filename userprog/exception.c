@@ -186,6 +186,7 @@ page_fault (struct intr_frame *f) {
 	user = (f->error_code & PF_U) != 0; // 사용자 모드에서의 접근 시도일 때 true, 커널 모드에서의 접근 시도일 때 false입니다.
 
 	// 구현하기: Call exit(-1) -> print the thread name and the exit status -1
+	// sys_exit(-1); // 추가
 
 #ifdef VM
 	/* For project 3 and later. */

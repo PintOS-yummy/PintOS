@@ -195,49 +195,77 @@ thread_print_stats (void) {
    The code provided sets the new thread's `priority' member to
    PRIORITY, but no actual priority scheduling is implemented.
    Priority scheduling is the goal of Problem 1-3. */
+/* 주어진 초기 우선순위(PRIORITY)를 가진 NAME이라는 이름의 새 커널 스레드를 생성합니다.
+   이 스레드는 FUNCTION을 실행하며, AUX를 인자로 넘깁니다.
+   생성된 스레드는 준비 큐에 추가됩니다. 새 스레드의 식별자를 반환하거나,
+   생성에 실패하면 TID_ERROR를 반환합니다.
+
+   thread_start()가 호출되었다면, 새 스레드는 thread_create()가 반환되기 전에
+   스케줄될 수 있습니다. 심지어 thread_create()가 반환되기 전에 종료될 수도 있습니다.
+   반대로, 원래 스레드는 새 스레드가 스케줄되기 전에 얼마든지 실행될 수 있습니다.
+   순서를 보장하려면 세마포어나 다른 형태의 동기화를 사용하세요.
+
+   제공된 코드는 새 스레드의 `priority` 멤버를 PRIORITY로 설정하지만,
+   실제 우선순위 스케줄링은 구현되지 않았습니다.
+   우선순위 스케줄링은 Problem 1-3의 목표입니다.
+
+함수의 주요 작업은 다음과 같습니다:
+   1. 새 스레드를 위한 메모리 할당.
+   2. 할당된 메모리에 스레드 초기화.
+   3. 할당된 스레드에 CPU 상태 세팅.
+   4. 스레드의 추가적인 상태 초기화.
+   5. 준비 큐에 스레드 추가 및 선점 테스트.
+*/
 tid_t
 thread_create (const char *name, int priority,
-		thread_func *function, void *aux) {
+		thread_func *function, void *aux) 
+{
 	struct thread *t;
 	tid_t tid;
 
 	ASSERT (function != NULL);
 
-	/* Allocate thread. */
+	/* 스레드 메모리 할당. 실패 시 TID_ERROR 반환 */
 	t = palloc_get_page (PAL_ZERO);
 	if (t == NULL)
 		return TID_ERROR;
 
-	/* Initialize thread. */
+	/* 스레드 초기화 */
 	init_thread (t, name, priority);
 	tid = t->tid = allocate_tid ();
 
+	if (t->name != 'idle') // 새로 생성된 프로세스가 idle이면, 
+	{
+		struct thread *curr = thread_current();
+		t->parent = curr; // 생성된 프로세스의 부모 프로세스는 curr
+		list_push_back(&curr->child_list, &t->child_elem);
+	}
+
 	/* Call the kernel_thread if it scheduled.
 	 * Note) rdi is 1st argument, and rsi is 2nd argument. */
+	/* 커널 스레드 함수와 인자 설정. */
 	t->tf.rip = (uintptr_t) kernel_thread;
 	t->tf.R.rdi = (uint64_t) function;
 	t->tf.R.rsi = (uint64_t) aux;
+	/* 스레드의 세그먼트 선택자 설정 */
 	t->tf.ds = SEL_KDSEG;
 	t->tf.es = SEL_KDSEG;
 	t->tf.ss = SEL_KDSEG;
 	t->tf.cs = SEL_KCSEG;
+	/* 인터럽트 플래그 설정 */
 	t->tf.eflags = FLAG_IF;
-
-	// 초기화
-	t->load_status = 0;
-	t->is_exit = 0;
-	sema_init(&t->fork_sema, 0);
-	sema_init(&t->wait_sema, 0);
 
 	// child 리스트에 추가 하는 로직 추가?
 
 	/* Add to run queue. */
+	/* 준비 큐에 스레드 추가 */
 	thread_unblock (t); // sorted by priority
 	// if newly created thread priority is bigger than current thread, yield.
 	struct list_elem *temp = list_begin(&ready_list);
 	struct thread *head_thread = list_entry (temp, struct thread, elem);
 
 	thread_test_preemption();
+
 	return tid;
 }
 
@@ -500,8 +528,13 @@ init_thread (struct thread *t, const char *name, int priority) {
 	t->nice = 0;
 	t->recent_cpu = 0;
 
-	// userprog // 자식 리스트 초기화
+	// userprog
+	// 초기화
+	t->load_status = 0;
+	t->is_exit = 0;
 	list_init (&t->child_list); 
+	sema_init(&t->fork_sema, 0);
+	sema_init(&t->wait_sema, 0);
 }
 
 /* Chooses and returns the next thread to be scheduled.  Should
