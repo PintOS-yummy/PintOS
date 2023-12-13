@@ -174,7 +174,6 @@ bool sys_create(const char *file, unsigned initial_size)
 {
 
 	check_page_fault(file);
-
 	return filesys_create(file, initial_size);
 }
 
