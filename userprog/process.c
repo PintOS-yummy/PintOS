@@ -606,7 +606,7 @@ load(const char *file_name, struct intr_frame *if_)
 
 	/* Start address. */
 	if_->rip = ehdr.e_entry;
-
+ç
 	//void argument_stack(char **parse ,int count ,struct intr_frame *if) struct intr_frame로 변경
 	argument_stack(argv, argc, if_);
 
