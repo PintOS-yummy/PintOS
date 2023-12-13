@@ -360,20 +360,31 @@ int process_wait(tid_t child_tid UNUSED)
 void 
 process_exit(void)
 {
-	struct thread *curr = thread_current();
+	struct thread *curr = thread_current ();
 	/* TODO: Your code goes here.
-	 * TODO: Implement process termination message (see
+	 * TODO: Implement process term	ination message (see
 	 * TODO: project2/process_termination.html).
 	 * TODO: We recommend you to implement process resource cleanup here. */
-	// printf("%s: exit(%d)\n", curr->name, curr->exit_status);
-
+	// if(curr->parent && curr->parent->waiting_child == curr ->tid){
+		// list_push_back(&ready_list,&thread_current()->parent->elem);
+		// thread_yield();
+		// curr->parent->exit_status = curr->exit_status;
 	curr->parent->child_exit_status = curr->exit_status;
-	sema_up(&curr->wait_sema);
-	list_remove(&curr->child_elem);
+	for (int i = 2; i < 63; i++)
+    	sys_close(i);
+	if(curr->loaded_file) file_close(curr->loaded_file);
 
-	// printf("\n hyunji !%s: exit(%d)\n", curr->name, curr->exit_status);
 	
-	process_cleanup();
+	//list_remove(&curr->c_elem);
+	// for (int i = 2; i < 63; i++)
+	// 	sys_close(i);
+	// if(curr->loaded_file) {
+	// 	printf("loaded file released! pid == %d\n ",curr->tid);
+	// 	file_close(curr->loaded_file);
+	// }
+	process_cleanup ();
+
+	sema_up(&curr->wait_sema);
 }
 
 /* Free the current process's resources. */
@@ -502,6 +513,11 @@ load(const char *file_name, struct intr_frame *if_)
 		argc++;
 	}
 
+	if( t->loaded_file != NULL){
+		file_allow_write(t->loaded_file);
+		t->loaded_file = NULL;
+	}
+
 	/* Allocate and activate page directory. */
 	t->pml4 = pml4_create ();
 	if (t->pml4 == NULL)
@@ -516,7 +532,8 @@ load(const char *file_name, struct intr_frame *if_)
 	}
 
 	//t->running_file = file;
-	//file_deny_write(file);
+	file_deny_write(file);
+	t->loaded_file = file;
 
 	/* Read and verify executable header. */
 	if (file_read (file, &ehdr, sizeof ehdr) != sizeof ehdr
@@ -597,7 +614,7 @@ load(const char *file_name, struct intr_frame *if_)
 
 done:
 	/* We arrive here whether the load is successful or not. */
-	file_close (file);
+	// file_close (file);
 	return success;
 }
 

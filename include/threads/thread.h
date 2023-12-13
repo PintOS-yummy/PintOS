@@ -151,7 +151,7 @@ struct thread {
 	struct intr_frame parent_if;
 	int waiting_child;
 	int child_exit_status;
-
+	struct file *loaded_file;
 
 #ifdef USERPROG
 	/* Owned by userprog/process.c. */

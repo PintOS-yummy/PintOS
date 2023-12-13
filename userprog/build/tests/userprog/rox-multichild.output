@@ -1,0 +1,35 @@
+Kernel command line: -q -f put rox-multichild put child-rox run rox-multichild
+0 ~ 9fc00 1
+100000 ~ 13e0000 1
+Pintos booting with: 
+	base_mem: 0x0 ~ 0x9fc00 (Usable: 639 kB)
+	ext_mem: 0x100000 ~ 0x13e0000 (Usable: 19,328 kB)
+Calibrating timer...  61,030,400 loops/s.
+hd0:0: detected 321 sector (160 kB) disk, model "QEMU HARDDISK", serial "QM00001"
+hd0:1: detected 20,160 sector (9 MB) disk, model "QEMU HARDDISK", serial "QM00002"
+hd1:0: detected 220 sector (110 kB) disk, model "QEMU HARDDISK", serial "QM00003"
+Formatting file system...done.
+Boot complete.
+Putting 'rox-multichild' into the file system...
+Putting 'child-rox' into the file system...
+Executing 'rox-multichild':
+(rox-multichild) begin
+(rox-multichild) open "child-rox"
+(rox-multichild) read "child-rox"
+Kernel PANIC at ../../filesys/file.c:163 in file_length(): assertion `file != NULL' failed.
+Call stack: 0x80042186e9 0x800421f768 0x800421dd44 0x800421ddc9 0x800421d85c 0x800421d553 0x4001c1 0x4003c5 0x400e66 0Interrupt 0x0d (#GP General Protection Exception) at rip=8004215723
+ cr2=0000000000000000 error=               0
+rax 0000800423f00000 rbx 0000800424000000 rcx 00000080040b8000 rdx 00000000000003d4
+rsp 0000008004240e10 rbp 0000008004240e20 rsi 000000000000a60f rdi 0000000000000000
+rip 0000008004215723 r8 0000008004240d28  r9 000000800421bb62 r10 0000000000000000
+r11 0000000000000216 r12 000000800421d614 r13 0000000000000000 r14 0000000000000000
+r15 0000000000000000 rflags 00000006
+es: 001b ds: 001b cs: 0008 ss: 0010
+Kernel PANIC recursion at ../../userprog/exception.c:128 in kill().
+Timer: 75 ticks
+Thread: 30 idle ticks, 42 kernel ticks, 3 user ticks
+hd0:0: 0 reads, 0 writes
+hd0:1: 113 reads, 478 writes
+hd1:0: 220 reads, 0 writes
+Console: 1721 characters output
+Key
