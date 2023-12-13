@@ -60,18 +60,17 @@ tid_t process_create_initd(const char *file_name)
 
 	/* Make a copy of FILE_NAME.
 	 * Otherwise there's a race between the caller and load(). */
-	fn_copy = palloc_get_page(0);
+	fn_copy = palloc_get_page (0);
 	if (fn_copy == NULL)
 		return TID_ERROR;
-	strlcpy(fn_copy, file_name, PGSIZE);
+	strlcpy (fn_copy, file_name, PGSIZE);
 
-	char **ptr;
-	char *parsed_file_name = strtok_r(file_name, " ", ptr); // 추가
-
+	void **save_ptr;
+	strtok_r(file_name," ",save_ptr);
 	/* Create a new thread to execute FILE_NAME. */
-	tid = thread_create(parsed_file_name, PRI_DEFAULT, initd, fn_copy);
+	tid = thread_create (file_name, PRI_DEFAULT, initd, fn_copy);
 	if (tid == TID_ERROR)
-		palloc_free_page(fn_copy);
+		palloc_free_page (fn_copy);
 	return tid;
 }
 
@@ -215,55 +214,49 @@ error:
 }
 
 void
-argument_stack(int argc, const char **argv, struct intr_frame *_if)
-{
-	// 인자가 push된 스택의 주소값을 저장하는 배열
-	char *addr[65];
-	int cnt = argc;
-
-	// 스택에 push 시작
-	for (int i = cnt - 1; i >= 0; i--) // 역순으로 argv[] 요소를 스택에 push
-	{
-		int arg_length = strlen(argv[i]) + 1; // null 종료자('\n') 포함한 인수 길이
-		_if->rsp -= arg_length; // 포인터 이동
-		// rsp 저장
-		addr[i] = (char *)_if->rsp; // 타입캐스팅 이유?
-		// 인수 스택에 복사
-		memcpy(_if->rsp, argv[i], arg_length);
+argument_stack(char **argv,int cnt,struct intr_frame* _if){
+	int i = 0;
+	// 1. argv 값 뒤에서부터 푸쉬
+	// 2. padding
+	// 3. sentinel
+	// 4. argv[cnt] ... argv[0] 주소 뒤에서부터 푸쉬
+	// 5. argv = argv[0] 주소를 저장한 곳의 주소 푸쉬
+	// 6. argc 푸쉬
+	// 7. return address(fake address) : 0 푸쉬
+	int *argv_addr[128];
+	for(int i = cnt - 1;i >= 0;i--){
+		//memcpy (void *dst_, const void *src_, size_t size)
+		_if->rsp -= strlen(argv[i]) + 1;
+		argv_addr[i] = _if->rsp;
+		memcpy(_if->rsp, argv[i],strlen(argv[i]) + 1); // 마지막 널문자
 	}
-
-	// 주소값 8byte의 배수로 padding
-	if (_if->rsp % 8)
-	{
-		_if->rsp -= (_if->rsp % 8); // 8의 배수로 만들고,
-		// _if->rsp -= (8 - (_if->rsp % 8));
-		// memset(_if->rsp, 0, 8 - (_if->rsp % 8)); 웨지감자?
-	}
-
-	// sentinel: 8byte 0 추가하기
-	_if->rsp -= 8; // 8바이트만큼 감소
-	memset(_if->rsp, 0, 8);
-
-	// addr[]에 있는 argv 인자의 주소를 저장
-	for (int i = argc - 1; i >= 0; i--)
-	{
-		_if->rsp -= 8;
-
-		memcpy(_if->rsp, &addr[i], 8); // argv는 스택의 주소가 아님!! // 왜 &? addr에는 주소값이 데이터로 들어가있는데?
-	}
-
-	// argv[] 주소 값 가리키는 포인터의 주소 
-	_if->R.rsi = _if->rsp;
-	// printf("\n_if->R.rsi: %d\n", _if->R.rsi);
 	
-	// 인자 개수(argc) 저장
-	_if->R.rdi = argc;
-	// printf("\n_if->R.rdi: %d\n", _if->R.rdi);
+	while((_if->rsp % 8)){ // 패딩 -> 8 단위
+		_if->rsp -= 1;
+		memset(_if->rsp,0,1);
+	}
+	// memset
 
+	_if->rsp -= 8;
+	// memset(_if->rsp,0,8); // sentinel
+
+	for(int i = cnt -1;i>=0;i--){
+		_if->rsp -= 8;
+		
+		memcpy(_if->rsp,&argv_addr[i],8); // why &?
+	}
+
+	// _if->rsp -= 8;
+	// memcpy(_if->rsp,argv,8);
+	_if->R.rsi = _if->rsp; // 공부 
+	
+	// _if->rsp -= 4;
+	// memcpy(_if->rsp,cnt,4);
+	_if->R.rdi = cnt;
+	
 	// fake address
 	_if->rsp -= 8;
-	memset(_if->rsp, 0, 8); // memcpy->memset으로 변경 후 page fault 해결
-	// hex_dump(_if->rsp, _if->rsp, USER_STACK - _if->rsp, true);
+	memset(_if->rsp,0,8);
 }
 
 /* Switch the current execution context to the f_name.
@@ -272,55 +265,37 @@ argument_stack(int argc, const char **argv, struct intr_frame *_if)
 int 
 process_exec(void *f_name)
 {
-	char *file_name = f_name;
 	bool success;
-
-	char *save_ptr;
-	char *token = strtok_r(f_name, " ", &save_ptr);
-	char *argv[65];
-	int argc = 0;
-
-	// 파싱
-	while (token != NULL) // f_name의 모든 토큰 파싱해서 argv에 push
-	{											// argc는 인자 개수
-		argv[argc] = token;
-		token = strtok_r(NULL, " ", &save_ptr);
-		argc++;
-	}
-
+	
 	/* We cannot use the intr_frame in the thread structure.
 	 * This is because when current thread rescheduled,
 	 * it stores the execution information to the member. */
-	/* 
-	 * 쓰레드 구조체에서 intr_frame을 사용할 수 없습니다.
-	 * 이는 현재 쓰레드가 재스케줄링될 때,
-	 * 실행 정보를 해당 멤버에 저장하기 때문입니다.
-	 */
 	struct intr_frame _if;
-	// printf("\nprocess_exec, rax: %d\n", _if.R.rax);
-
-	_if.ds = _if.es = _if.ss = SEL_UDSEG;
+	_if.ds = _if.es = _if.ss = SEL_UDSEG; 
 	_if.cs = SEL_UCSEG;
-	_if.eflags = FLAG_IF | FLAG_MBS; // 인터럽트 활성화 플래그와 모든 인터럽트를 무시하는 플래그를 설정
-
-	/* We first kill the current context 
-	* 현재 프로세스의 실행 환경을 정리하고, 자원을 해제합니다.
-	*/
-	process_cleanup();
+	_if.eflags = FLAG_IF | FLAG_MBS;
+	
+	/* We first kill the current context */
+	process_cleanup ();
+	char *file_name = f_name;
+	success = load (file_name, &_if);
 
 	/* And then load the binary */
-	success = load(file_name, &_if);
+	
+	// hex_dump(); // ?
+	//hex_dump(_if.rsp, _if.rsp,(USER_STACK - _if.rsp), true);
 
-	argument_stack(argc, argv, &_if); // 인자 스택에 push
-
+	//strlcpy(thread_current()->p_name,argv[0],sizeof(thread_current()->p_name) + 1);
+	// printf("cur thread process name : %s\n",thread_current()->p_name);
+	// printf("argv[0] = %s\n\n",argv[0]);
 	/* If load failed, quit. */
-	palloc_free_page(file_name);
+	palloc_free_page (file_name); 
 	if (!success)
 		return -1;
 
 	/* Start switched process. */
-	do_iret(&_if);
-	NOT_REACHED();
+	do_iret (&_if);
+	NOT_REACHED ();
 }
 
 struct thread 
@@ -377,6 +352,7 @@ int process_wait(tid_t child_tid UNUSED)
 	struct thread *target = get_child_process2(child_tid);
 	if(target) 
 		sema_down(&target->wait_sema);
+	
 	return curr->child_exit_status;
 }
 
@@ -395,6 +371,8 @@ process_exit(void)
 	sema_up(&curr->wait_sema);
 	list_remove(&curr->child_elem);
 
+	// printf("\n hyunji !%s: exit(%d)\n", curr->name, curr->exit_status);
+	
 	process_cleanup();
 }
 
@@ -506,108 +484,120 @@ static bool load_segment(struct file *file, off_t ofs, uint8_t *upage,
 static bool
 load(const char *file_name, struct intr_frame *if_)
 {
-	struct thread *t = thread_current();
+	struct thread *t = thread_current ();
 	struct ELF ehdr;
 	struct file *file = NULL;
 	off_t file_ofs;
 	bool success = false;
 	int i;
 
+	/*let's parsing*/
+	static char *argv[LOADER_ARGS_LEN / 2 + 1];
+	char *token, *save_ptr;
+	int argc = 0;
+
+	//char *strtok_r(char *s, const char *delimiters, char **saveptr);
+	for (token = strtok_r (file_name, " ", &save_ptr); token != NULL; token = strtok_r (NULL, " ", &save_ptr)){
+		argv[argc] = token;
+		argc++;
+	}
+
 	/* Allocate and activate page directory. */
-	t->pml4 = pml4_create();
+	t->pml4 = pml4_create ();
 	if (t->pml4 == NULL)
 		goto done;
-	process_activate(thread_current());
+	process_activate (thread_current ());
 
 	/* Open executable file. */
-	file = filesys_open(file_name);
-	if (file == NULL)
-	{
-		printf("load: %s: open failed\n", file_name);
+	file = filesys_open (file_name);
+	if (file == NULL) {
+		printf ("load: %s: open failed\n", file_name);
 		goto done;
 	}
 
+	//t->running_file = file;
+	//file_deny_write(file);
+
 	/* Read and verify executable header. */
-	if (file_read(file, &ehdr, sizeof ehdr) != sizeof ehdr || memcmp(ehdr.e_ident, "\177ELF\2\1\1", 7) || ehdr.e_type != 2 || ehdr.e_machine != 0x3E // amd64
-			|| ehdr.e_version != 1 || ehdr.e_phentsize != sizeof(struct Phdr) || ehdr.e_phnum > 1024)
-	{
-		printf("load: %s: error loading executable\n", file_name);
+	if (file_read (file, &ehdr, sizeof ehdr) != sizeof ehdr
+			|| memcmp (ehdr.e_ident, "\177ELF\2\1\1", 7)
+			|| ehdr.e_type != 2
+			|| ehdr.e_machine != 0x3E // amd64
+			|| ehdr.e_version != 1
+			|| ehdr.e_phentsize != sizeof (struct Phdr)
+			|| ehdr.e_phnum > 1024) {
+		printf ("load: %s: error loading executable\n", file_name);
 		goto done;
 	}
 
 	/* Read program headers. */
 	file_ofs = ehdr.e_phoff;
-	for (i = 0; i < ehdr.e_phnum; i++)
-	{
+	for (i = 0; i < ehdr.e_phnum; i++) {
 		struct Phdr phdr;
 
-		if (file_ofs < 0 || file_ofs > file_length(file))
+		if (file_ofs < 0 || file_ofs > file_length (file))
 			goto done;
-		file_seek(file, file_ofs);
+		file_seek (file, file_ofs);
 
-		if (file_read(file, &phdr, sizeof phdr) != sizeof phdr)
+		if (file_read (file, &phdr, sizeof phdr) != sizeof phdr)
 			goto done;
 		file_ofs += sizeof phdr;
-		switch (phdr.p_type)
-		{
-		case PT_NULL:
-		case PT_NOTE:
-		case PT_PHDR:
-		case PT_STACK:
-		default:
-			/* Ignore this segment. */
-			break;
-		case PT_DYNAMIC:
-		case PT_INTERP:
-		case PT_SHLIB:
-			goto done;
-		case PT_LOAD:
-			if (validate_segment(&phdr, file))
-			{
-				bool writable = (phdr.p_flags & PF_W) != 0;
-				uint64_t file_page = phdr.p_offset & ~PGMASK;
-				uint64_t mem_page = phdr.p_vaddr & ~PGMASK;
-				uint64_t page_offset = phdr.p_vaddr & PGMASK;
-				uint32_t read_bytes, zero_bytes;
-				if (phdr.p_filesz > 0)
-				{
-					/* Normal segment.
-					 * Read initial part from disk and zero the rest. */
-					read_bytes = page_offset + phdr.p_filesz;
-					zero_bytes = (ROUND_UP(page_offset + phdr.p_memsz, PGSIZE) - read_bytes);
+		switch (phdr.p_type) {
+			case PT_NULL:
+			case PT_NOTE:
+			case PT_PHDR:
+			case PT_STACK:
+			default:
+				/* Ignore this segment. */
+				break;
+			case PT_DYNAMIC:
+			case PT_INTERP:
+			case PT_SHLIB:
+				goto done;
+			case PT_LOAD:
+				if (validate_segment (&phdr, file)) {
+					bool writable = (phdr.p_flags & PF_W) != 0;
+					uint64_t file_page = phdr.p_offset & ~PGMASK;
+					uint64_t mem_page = phdr.p_vaddr & ~PGMASK;
+					uint64_t page_offset = phdr.p_vaddr & PGMASK;
+					uint32_t read_bytes, zero_bytes;
+					if (phdr.p_filesz > 0) {
+						/* Normal segment.
+						 * Read initial part from disk and zero the rest. */
+						read_bytes = page_offset + phdr.p_filesz;
+						zero_bytes = (ROUND_UP (page_offset + phdr.p_memsz, PGSIZE)
+								- read_bytes);
+					} else {
+						/* Entirely zero.
+						 * Don't read anything from disk. */
+						read_bytes = 0;
+						zero_bytes = ROUND_UP (page_offset + phdr.p_memsz, PGSIZE);
+					}
+					if (!load_segment (file, file_page, (void *) mem_page,
+								read_bytes, zero_bytes, writable))
+						goto done;
 				}
 				else
-				{
-					/* Entirely zero.
-					 * Don't read anything from disk. */
-					read_bytes = 0;
-					zero_bytes = ROUND_UP(page_offset + phdr.p_memsz, PGSIZE);
-				}
-				if (!load_segment(file, file_page, (void *)mem_page,
-													read_bytes, zero_bytes, writable))
 					goto done;
-			}
-			else
-				goto done;
-			break;
+				break;
 		}
 	}
 
 	/* Set up stack. */
-	if (!setup_stack(if_))
+	if (!setup_stack (if_))
 		goto done;
 
 	/* Start address. */
 	if_->rip = ehdr.e_entry;
 
-	/* TODO: Your code goes here.
-	 * TODO: Implement argument passing (see project2/argument_passing.html). */
+	//void argument_stack(char **parse ,int count ,struct intr_frame *if) struct intr_frame로 변경
+	argument_stack(argv, argc, if_);
 
 	success = true;
 
 done:
 	/* We arrive here whether the load is successful or not. */
-	file_close(file);
+	file_close (file);
 	return success;
 }
 

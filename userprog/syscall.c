@@ -320,7 +320,7 @@ int sys_exec (const char *cmd_line){
 		
 	memcpy(fn_copy, cmd_line, size);
 
-	if(process_exec(fn_copy) == -1)
+	if(process_exec(fn_copy) <0 )
 		sys_exit(-1);
 		// return -1;
 }
@@ -396,7 +396,7 @@ remove_child_process(pid_t pid){
 int
 sys_wait(pid_t pid){
 	// 자식 끝날때까지 기다리는 함수
-	if(thread_current()->waiting_child == pid) 
+	if(thread_current()->waiting_child == pid)
 		return -1;
 
 	thread_current()->waiting_child = pid;

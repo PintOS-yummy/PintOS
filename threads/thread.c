@@ -228,11 +228,7 @@ thread_create (const char *name, int priority,
 	t->tf.cs = SEL_KCSEG;
 	t->tf.eflags = FLAG_IF;
 
-	//exit 세마포어 0으로 초기화
-	// sema_init(&t->exit_sema, 0);
-	// sema_init(&t->load_sema, 0);
-
-
+	
 	/* Add to run queue. */
 	thread_unblock (t); // sorted by priority
 	// if newly created thread priority is bigger than current thread, yield.

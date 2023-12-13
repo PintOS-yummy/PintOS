@@ -4,7 +4,7 @@ Kernel command line: -q -f put sm-random run sm-random
 Pintos booting with: 
 	base_mem: 0x0 ~ 0x9fc00 (Usable: 639 kB)
 	ext_mem: 0x100000 ~ 0x13e0000 (Usable: 19,328 kB)
-Calibrating timer...  117,760,000 loops/s.
+Calibrating timer...  99,635,200 loops/s.
 hd0:0: detected 321 sector (160 kB) disk, model "QEMU HARDDISK", serial "QM00001"
 hd0:1: detected 20,160 sector (9 MB) disk, model "QEMU HARDDISK", serial "QM00002"
 hd1:0: detected 110 sector (55 kB) disk, model "QEMU HARDDISK", serial "QM00003"
@@ -17,14 +17,14 @@ Executing 'sm-random':
 (sm-random) open "bazzle"
 (sm-random) write "bazzle" in random order
 Kernel PANIC at ../../filesys/file.c:163 in file_length(): assertion `file != NULL' failed.
-Call stack: 0x80042186e9 0x800421f6bd 0x800421dc98 0x800421dd1d 0x800421d7b0 0x800421d4a7 0x4002a4 0x401142 0x40118b.
+Call stack: 0x80042186e9 0x800421f6e6 0x800421dcc2 0x800421dd47 0x800421d7da 0x800421d4d1 0x4002a4 0x401142 0x40118b.
 The `backtrace' program can make call stacks useful.
 Read "Backtraces" in the "Debugging Tools" chapter
 of the Pintos documentation for more information.
-Timer: 67 ticks
-Thread: 30 idle ticks, 34 kernel ticks, 3 user ticks
+Timer: 63 ticks
+Thread: 30 idle ticks, 29 kernel ticks, 4 user ticks
 hd0:0: 0 reads, 0 writes
 hd0:1: 109 reads, 264 writes
 hd1:0: 110 reads, 0 writes
-Console: 1232 characters output
+Console: 1231 characters output
 Key
