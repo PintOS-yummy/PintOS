@@ -164,9 +164,11 @@ sys_exit(int status)
 }
 
 pid_t
-sys_fork(const char *thread_name, struct intr_frame *if_)
+sys_fork(const char *thread_name, struct intr_frame *if_) // fork가 된 시점의 프로세스의 if_ 가져옴
 {
 	// printf("\n1\n");
+	/* 현재 프로세스의 if_를 thread_name이라는 프로세스로 복제
+	복제된 프로세스의 pid 반환 */
 	int pid = process_fork(thread_name, if_);
 	
 	struct thread *child = get_child_process(pid);
@@ -174,11 +176,10 @@ sys_fork(const char *thread_name, struct intr_frame *if_)
 		return TID_ERROR;
 
 	sema_down(&child->fork_sema); // child가 load 될 때까지 down하고, load되면 up해줌
+	// printf("\n2\n");
 	
 	if (child->exit_status == -1)
 		return -1;
-
-	// printf("\n2\n");
 	
 	return pid; // return pid가 실행되도록 세마포어를 사용하는 것
 }

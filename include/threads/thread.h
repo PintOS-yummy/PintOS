@@ -199,6 +199,7 @@ void do_iret (struct intr_frame *tf);
 
 struct list ready_list;
 struct list sleep_list; 
+struct list wait_list; // 추가
 
 struct thread *idle_thread;
 int READY_THREADS;

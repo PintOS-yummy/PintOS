@@ -356,20 +356,23 @@ is_sorted(struct list_elem *a, struct list_elem *b,
 	 given auxiliary data AUX.  Returns the (exclusive) end of the
 	 run.
 	 A through B (exclusive) must form a non-empty range. */
+/* 주어진 범위 A부터 B(미포함)까지에서, LESS 함수와 보조 데이터 AUX에 따라
+   비감소 순서인 리스트 요소들의 구간을 찾습니다. 그 구간의 (배타적인) 끝을 반환합니다.
+   A부터 B(미포함)까지는 비어 있지 않은 범위를 형성해야 합니다. */
 static struct list_elem *
 find_end_of_run(struct list_elem *a, struct list_elem *b,
 								list_less_func *less, void *aux)
 {
-	ASSERT(a != NULL);
-	ASSERT(b != NULL);
-	ASSERT(less != NULL);
-	ASSERT(a != b);
+	ASSERT(a != NULL); // a가 NULL이 아님을 확인합니다.
+	ASSERT(b != NULL); // b가 NULL이 아님을 확인합니다.
+	ASSERT(less != NULL); // less 함수가 NULL이 아님을 확인합니다.
+	ASSERT(a != b); // a와 b가 다른 요소임을 확인합니다.
 
 	do
 	{
-		a = list_next(a);
-	} while (a != b && !less(a, list_prev(a), aux));
-	return a;
+		a = list_next(a); // a를 다음 요소로 이동합니다.
+	} while (a != b && !less(a, list_prev(a), aux)); // a가 b와 같지 않고, a가 a의 이전 요소보다 작지 않은 경우 계속 반복합니다.
+	return a;  // 비감소 순서가 끝나는 지점을 반환합니다.
 }
 
 /* Merges A0 through A1B0 (exclusive) with A1B0 through B1
@@ -445,7 +448,8 @@ void list_sort(struct list *list, list_less_func *less, void *aux)
 	 Runs in O(n) average case in the number of elements in LIST.
 	 
 	 쓰레드를 우선순위에 맞게 삽입 */
-void list_insert_ordered(struct list *list, struct list_elem *elem, list_less_func *less, void *aux)
+void 
+list_insert_ordered(struct list *list, struct list_elem *elem, list_less_func *less, void *aux)
 {
 	struct list_elem *e;
 

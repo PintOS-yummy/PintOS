@@ -206,20 +206,27 @@ pml4_activate (uint64_t *pml4) {
 	lcr3 (vtop (pml4 ? pml4 : base_pml4));
 }
 
+/* 사용자 가상 주소 UADDR에 해당하는 물리 주소를 pml4에서 찾아냅니다.
+ * 해당 물리 주소에 해당하는 커널 가상 주소를 반환하거나,
+ * UADDR이 매핑되어 있지 않은 경우 NULL 포인터를 반환합니다. */
 /* Looks up the physical address that corresponds to user virtual
  * address UADDR in pml4.  Returns the kernel virtual address
  * corresponding to that physical address, or a null pointer if
  * UADDR is unmapped. */
 void *
 pml4_get_page (uint64_t *pml4, const void *uaddr) {
-	ASSERT (is_user_vaddr (uaddr));
+    ASSERT (is_user_vaddr (uaddr));  // uaddr이 사용자 가상 주소인지 확인합니다.
 
-	uint64_t *pte = pml4e_walk (pml4, (uint64_t) uaddr, 0);
+    // pml4에서 주어진 가상 주소 uaddr에 대한 페이지 테이블 엔트리(pte)를 찾습니다.
+    uint64_t *pte = pml4e_walk (pml4, (uint64_t) uaddr, 0);
 
-	if (pte && (*pte & PTE_P))
-		return ptov (PTE_ADDR (*pte)) + pg_ofs (uaddr);
-	return NULL;
+    // pte가 유효하고, 페이지가 present (PTE_P 플래그가 설정된)인 경우
+    if (pte && (*pte & PTE_P))
+        // pte에서 물리 주소를 추출하고, 해당 물리 주소를 가상 주소로 변환하여 반환합니다.
+        return ptov (PTE_ADDR (*pte)) + pg_ofs (uaddr);
+    return NULL;  // uaddr이 매핑되어 있지 않은 경우 NULL을 반환합니다.
 }
+
 
 /* Adds a mapping in page map level 4 PML4 from user virtual page
  * UPAGE to the physical frame identified by kernel virtual address KPAGE.

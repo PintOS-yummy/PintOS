@@ -83,11 +83,11 @@ process_create_initd(const char *file_name)
 		return TID_ERROR;
 	strlcpy(fn_copy, file_name, PGSIZE);
 
-	char **ptr;
-	char *parsed_file_name = strtok_r(file_name, " ", ptr); // 추가
+	char **save_ptr;
+	strtok_r(file_name, " ", save_ptr); // 변경
 
 	/* Create a new thread to execute FILE_NAME. */
-	tid = thread_create(parsed_file_name, PRI_DEFAULT, initd, fn_copy);
+	tid = thread_create(file_name, PRI_DEFAULT, initd, fn_copy);
 	if (tid == TID_ERROR)
 		palloc_free_page(fn_copy);
 	return tid;
@@ -142,7 +142,7 @@ duplicate_pte(uint64_t *pte, void *va, void *aux)
 	if (is_kern_pte(pte))
 		return true;
 
-	va = pg_round_down(va); //??
+	va = pg_round_down(va); // 페이지 단위로 복사 할 수 있게 페이지의 어디를 가리키든 페이지 시작주소로 지정
 	/* 2. Resolve VA from the parent's page map level 4. */
 	/* 2. 부모의 페이지 맵 레벨 4에서 가상 주소(VA)를 해결합니다. */
 	parent_page = pml4_get_page(parent->pml4, va);
@@ -414,6 +414,7 @@ int process_wait(tid_t child_tid)
 	int exit_status = target->exit_status; // 추가
 
 	list_remove(&target->child_elem); // 추가
+	target->parent = NULL;
 	
 	return exit_status; // 변경
 }
@@ -429,13 +430,13 @@ process_exit(void)
 	 * TODO: We recommend you to implement process resource cleanup here. */
 	struct thread *curr = thread_current();
 
-	curr->parent->child_exit_status = curr->exit_status;
+	//curr->parent->child_exit_status = curr->exit_status;
 	
 	// printf("\n2\n");
 	sema_up(&curr->wait_sema); // 문제발생
-	list_remove(&curr->child_elem);
+	// list_remove(&curr->child_elem);
 
-	// process_cleanup();
+	process_cleanup();
 }
 
 /* Free the current process's resources. */

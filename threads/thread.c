@@ -122,7 +122,7 @@ thread_init (void) {
 	list_init (&ready_list);
 	list_init (&sleep_list);
 	list_init (&destruction_req);
-
+	list_init (&wait_list); // 추가
 	READY_THREADS = 0; // 초기화 
 	LOAD_AVG = 0; // 초기화
 
@@ -133,6 +133,7 @@ thread_init (void) {
 	/* initialize the sleep queue date structure */
 	initial_thread->wakeup_tick = 0; // ? 
 
+	initial_thread->exit_status = 0; // 추가
 	initial_thread->tid = allocate_tid ();
 }
 
@@ -296,7 +297,9 @@ comapare_priority(struct list_elem *element, struct list_elem *before,void * aux
 
 	struct thread * elem_thread = list_entry (element, struct thread, elem);
 	struct thread * before_thread = list_entry(before, struct thread, elem);
-	if( elem_thread->priority > before_thread->priority) return true;
+	
+	if (elem_thread->priority > before_thread->priority) 
+		return true;
 	
 	return false;
 }
@@ -323,18 +326,21 @@ thread_name (void) {
 	return thread_current ()->name;
 }
 
+/* 현재 실행 중인 스레드를 반환합니다.
+   이 함수는 running_thread() 함수에 몇 가지 유효성 검사를 추가한 것입니다.
+   자세한 내용은 thread.h 파일 상단의 주석을 참조하세요. */
 /* Returns the running thread.
    This is running_thread() plus a couple of sanity checks.
    See the big comment at the top of thread.h for details. */
 struct thread *
-thread_current (void) {
+thread_current (void) 
+{
 	struct thread *t = running_thread ();
 
-	/* Make sure T is really a thread.
-	   If either of these assertions fire, then your thread may
-	   have overflowed its stack.  Each thread has less than 4 kB
-	   of stack, so a few big automatic arrays or moderate
-	   recursion can cause stack overflow. */
+	/* T가 실제로 스레드인지 확인합니다.
+	   이러한 ASSERT 문이 실패한다면, 스레드의 스택이 오버플로된 것일 수 있습니다.
+	   각 스레드는 4 kB 미만의 스택을 가지고 있으므로, 몇 개의 큰 자동 배열이나
+	   적당한 재귀 호출로 인해 스택 오버플로가 발생할 수 있습니다. */
 	ASSERT (is_thread (t));
 	ASSERT (t->status == THREAD_RUNNING);
 
